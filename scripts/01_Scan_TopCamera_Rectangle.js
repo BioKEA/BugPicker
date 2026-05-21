@@ -79,6 +79,15 @@ with (imports) {
         return JSON.stringify(record) + '\n';
     }
 
+    function getUnitsPerPixelForCurrentZ(camera) {
+        try {
+            return camera.getUnitsPerPixelAtZ();
+        }
+        catch (error) {
+            return camera.getUnitsPerPixel();
+        }
+    }
+
     function writeText(file, text) {
         var writer = new FileWriter(file);
         try {
@@ -169,7 +178,7 @@ with (imports) {
         var manifestFile = new File(scanDir, 'manifest.jsonl');
         var manifest = new FileWriter(manifestFile);
         var cameraLocation = camera.getLocation();
-        var unitsPerPixel = camera.getUnitsPerPixel();
+        var unitsPerPixel = getUnitsPerPixelForCurrentZ(camera);
         var xs = positions(xLeft, xRight, xStepMm, false);
         var ys = positions(yTop, yBottom, yStepMm, true);
         var frameIndex = 0;
