@@ -1,11 +1,35 @@
 # Generated scan data and runtime control files
 scans/
 control/
+data/
+datasets/
+outputs/
+artifacts/
 
 # Local Python environment and caches
 .venv/
 __pycache__/
 *.py[cod]
 
-# Captured/generated images
+# Captured/generated images and video
 *.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.bmp
+*.gif
+*.webp
+*.avi
+*.mp4
+*.mov
+*.mkv
+
+# Generated analysis/data products
+*.csv
+*.jsonl
+*.tsv
+*.npy
+*.npz
+*.pkl
+*.pickle

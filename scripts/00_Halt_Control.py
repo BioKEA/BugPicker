@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""00: Lightweight cooperative pause/resume control for scan scripts."""
+"""00: Lightweight cooperative pause/resume/halt control for scan scripts."""
 
 from __future__ import annotations
 
@@ -12,16 +12,18 @@ from tkinter import messagebox, ttk
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTROL_DIR = PROJECT_ROOT / "control"
-HALT_FILE = CONTROL_DIR / "halt.flag"
+PAUSE_FILE = CONTROL_DIR / "pause.flag"
+STOP_FILE = CONTROL_DIR / "stop.flag"
 STATUS_FILE = CONTROL_DIR / "scan_status.json"
+DETECTION_STATUS_FILE = CONTROL_DIR / "detection_status.json"
 
 
 class HaltControl(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("BioKEA Bug PnP Control")
-        self.geometry("680x450")
-        self.minsize(680, 450)
+        self.geometry("580x720")
+        self.minsize(580, 560)
 
         CONTROL_DIR.mkdir(exist_ok=True)
 
@@ -31,7 +33,13 @@ class HaltControl(tk.Tk):
         self.progress_var = tk.StringVar(value="Progress: -")
         self.updated_var = tk.StringVar(value="Updated: -")
         self.message_var = tk.StringVar(value="")
-        self.halt_var = tk.StringVar(value="Pause flag is clear")
+        self.control_var = tk.StringVar(value="Controls clear")
+        self.detection_var = tk.StringVar(value="Latest detection: -")
+        self.detection_detail_var = tk.StringVar(value="")
+        self.detection_image: tk.PhotoImage | None = None
+        self.detection_preview_path: Path | None = None
+        self.detection_preview_mtime: float | None = None
+        self.detection_image_label: ttk.Label | None = None
 
         self.configure(bg="#eef3f1")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -44,23 +52,22 @@ class HaltControl(tk.Tk):
         style.configure("Outer.TFrame", background="#eef3f1")
         style.configure("Panel.TFrame", background="#ffffff")
         style.configure("Brand.TFrame", background="#09211c")
-        style.configure("Logo.TLabel", background="#09211c", foreground="#f5f1e8", font=("TkDefaultFont", 26, "bold"))
-        style.configure("Tag.TLabel", background="#09211c", foreground="#a7d8bf", font=("TkDefaultFont", 10))
-        style.configure("Title.TLabel", background="#eef3f1", foreground="#09211c", font=("TkDefaultFont", 16, "bold"))
-        style.configure("Panel.TLabel", background="#ffffff", foreground="#111827", font=("TkDefaultFont", 12))
-        style.configure("Small.TLabel", background="#ffffff", foreground="#4b5563", font=("TkDefaultFont", 10))
+        style.configure("Logo.TLabel", background="#09211c", foreground="#f5f1e8", font=("TkDefaultFont", 18, "bold"))
+        style.configure("Title.TLabel", background="#eef3f1", foreground="#09211c", font=("TkDefaultFont", 12, "bold"))
+        style.configure("Panel.TLabel", background="#ffffff", foreground="#111827", font=("TkDefaultFont", 10))
+        style.configure("Small.TLabel", background="#ffffff", foreground="#4b5563", font=("TkDefaultFont", 9))
 
-        outer = ttk.Frame(self, padding=18, style="Outer.TFrame")
+        outer = ttk.Frame(self, padding=12, style="Outer.TFrame")
         outer.pack(fill="both", expand=True)
 
-        brand = ttk.Frame(outer, padding=16, style="Brand.TFrame")
+        brand = ttk.Frame(outer, padding=10, style="Brand.TFrame")
         brand.pack(fill="x")
         ttk.Label(brand, text="BioKEA", style="Logo.TLabel").pack(anchor="w")
 
-        ttk.Label(outer, text="Bug PnP Scan Control", style="Title.TLabel").pack(anchor="w", pady=(16, 0))
+        ttk.Label(outer, text="Bug PnP Scan Control", style="Title.TLabel").pack(anchor="w", pady=(10, 0))
 
-        panel = ttk.Frame(outer, padding=14, style="Panel.TFrame")
-        panel.pack(fill="x", pady=(12, 12))
+        panel = ttk.Frame(outer, padding=10, style="Panel.TFrame")
+        panel.pack(fill="x", pady=(8, 8))
 
         ttk.Label(panel, textvariable=self.status_var, style="Panel.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
         ttk.Label(panel, textvariable=self.scan_var, style="Small.TLabel").grid(row=1, column=0, sticky="w", pady=(8, 0))
@@ -71,59 +78,92 @@ class HaltControl(tk.Tk):
             row=3, column=0, columnspan=2, sticky="w", pady=(8, 0)
         )
 
-        halt_panel = ttk.Frame(outer, padding=14, style="Panel.TFrame")
+        halt_panel = ttk.Frame(outer, padding=10, style="Panel.TFrame")
         halt_panel.pack(fill="x")
 
-        ttk.Label(halt_panel, textvariable=self.halt_var, style="Panel.TLabel").pack(anchor="w")
+        ttk.Label(halt_panel, textvariable=self.control_var, style="Panel.TLabel").pack(anchor="w")
 
         button_row = ttk.Frame(halt_panel, style="Panel.TFrame")
         button_row.pack(fill="x", pady=(12, 0))
 
-        halt_button = tk.Button(
+        pause_button = tk.Button(
             button_row,
-            text="PAUSE / HALT",
+            text="PAUSE",
             command=self.request_pause,
-            height=3,
-            bg="#a32020",
-            fg="white",
-            activebackground="#7a1616",
-            activeforeground="white",
-            font=("TkDefaultFont", 14, "bold"),
+            height=2,
+            bg="#d6a11d",
+            fg="#111827",
+            activebackground="#b98512",
+            activeforeground="#111827",
+            font=("TkDefaultFont", 10, "bold"),
             relief="flat",
         )
-        halt_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        pause_button.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
-        clear_button = tk.Button(
+        resume_button = tk.Button(
             button_row,
             text="RESUME",
             command=self.resume_scan,
-            height=3,
+            height=2,
             bg="#1d6b4f",
             fg="white",
             activebackground="#15543e",
             activeforeground="white",
-            font=("TkDefaultFont", 12, "bold"),
+            font=("TkDefaultFont", 10, "bold"),
             relief="flat",
         )
-        clear_button.pack(side="left", fill="x", expand=True)
+        resume_button.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        halt_button = tk.Button(
+            button_row,
+            text="HALT",
+            command=self.request_halt,
+            height=2,
+            bg="#a32020",
+            fg="white",
+            activebackground="#7a1616",
+            activeforeground="white",
+            font=("TkDefaultFont", 10, "bold"),
+            relief="flat",
+        )
+        halt_button.pack(side="left", fill="x", expand=True)
 
         note = (
-            "Cooperative pause: the running script waits before the next scan move and resumes when cleared. "
+            "Pause waits before the next scan move. Halt exits the running script before the next move. "
             "Use OpenPnP/controller/physical stop for immediate emergency stop."
         )
-        ttk.Label(outer, text=note, wraplength=520).pack(anchor="w", pady=(12, 0))
+        ttk.Label(outer, text=note, wraplength=500).pack(anchor="w", pady=(8, 0))
+
+        detection_panel = ttk.Frame(outer, padding=10, style="Panel.TFrame")
+        detection_panel.pack(fill="both", expand=True, pady=(8, 0))
+
+        ttk.Label(detection_panel, textvariable=self.detection_var, style="Panel.TLabel").pack(anchor="w")
+        ttk.Label(
+            detection_panel,
+            textvariable=self.detection_detail_var,
+            style="Small.TLabel",
+            wraplength=520,
+        ).pack(anchor="w", pady=(4, 8))
+        self.detection_image_label = ttk.Label(detection_panel, style="Panel.TLabel")
+        self.detection_image_label.pack(anchor="center", fill="both", expand=True)
 
     def request_pause(self) -> None:
         CONTROL_DIR.mkdir(exist_ok=True)
-        HALT_FILE.write_text(f"pause requested at {datetime.now().isoformat()}\n", encoding="utf-8")
+        PAUSE_FILE.write_text(f"pause requested at {datetime.now().isoformat()}\n", encoding="utf-8")
         self.refresh()
 
     def resume_scan(self) -> None:
-        HALT_FILE.unlink(missing_ok=True)
+        PAUSE_FILE.unlink(missing_ok=True)
+        self.refresh()
+
+    def request_halt(self) -> None:
+        CONTROL_DIR.mkdir(exist_ok=True)
+        STOP_FILE.write_text(f"halt requested at {datetime.now().isoformat()}\n", encoding="utf-8")
+        PAUSE_FILE.unlink(missing_ok=True)
         self.refresh()
 
     def on_close(self) -> None:
-        if not HALT_FILE.exists():
+        if not PAUSE_FILE.exists():
             self.destroy()
             return
 
@@ -136,12 +176,17 @@ class HaltControl(tk.Tk):
             default=messagebox.YES,
         )
         if should_resume:
-            HALT_FILE.unlink(missing_ok=True)
+            PAUSE_FILE.unlink(missing_ok=True)
 
         self.destroy()
 
     def refresh(self) -> None:
-        self.halt_var.set("Pause flag is REQUESTED" if HALT_FILE.exists() else "Pause flag is clear")
+        controls = []
+        if PAUSE_FILE.exists():
+            controls.append("pause requested")
+        if STOP_FILE.exists():
+            controls.append("halt requested")
+        self.control_var.set("Controls: " + (", ".join(controls) if controls else "clear"))
 
         if STATUS_FILE.exists():
             try:
@@ -171,7 +216,74 @@ class HaltControl(tk.Tk):
             self.updated_var.set("Updated: -")
             self.message_var.set("")
 
+        self.refresh_detection()
         self.after(500, self.refresh)
+
+    def refresh_detection(self) -> None:
+        if not DETECTION_STATUS_FILE.exists():
+            self.detection_var.set("Latest detection: -")
+            self.detection_detail_var.set("")
+            self._clear_detection_image()
+            return
+
+        try:
+            status = json.loads(DETECTION_STATUS_FILE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            self.detection_var.set("Latest detection: unreadable detection status")
+            self.detection_detail_var.set("")
+            self._clear_detection_image()
+            return
+
+        detection_state = status.get("status", "unknown")
+        if detection_state != "detected":
+            if detection_state == "processing":
+                self.detection_var.set("Latest detection: processing current scan")
+            elif detection_state == "none_found":
+                self.detection_var.set("Latest detection: none found")
+            else:
+                self.detection_var.set(f"Latest detection: {detection_state}")
+            self.detection_detail_var.set(status.get("message", ""))
+            self._clear_detection_image()
+            return
+
+        frame = status.get("frame_index", "-")
+        count = status.get("detections_in_frame", "-")
+        score = status.get("score", "-")
+        centroid_x = status.get("centroid_x_px", "-")
+        centroid_y = status.get("centroid_y_px", "-")
+        self.detection_var.set(f"Latest detection: frame {frame} ({count} in frame)")
+        self.detection_detail_var.set(
+            f"Centroid: {self._format_number(centroid_x)}, {self._format_number(centroid_y)} px   "
+            f"Score: {self._format_number(score)}   Updated: {status.get('updated_at', '-')}"
+        )
+
+        preview = status.get("preview_file")
+        if not preview or self.detection_image_label is None:
+            return
+
+        preview_path = Path(preview)
+        if not preview_path.exists():
+            return
+
+        mtime = preview_path.stat().st_mtime
+        if self.detection_preview_path == preview_path and self.detection_preview_mtime == mtime:
+            return
+
+        try:
+            self.detection_image = tk.PhotoImage(file=str(preview_path))
+        except tk.TclError:
+            return
+
+        self.detection_preview_path = preview_path
+        self.detection_preview_mtime = mtime
+        self.detection_image_label.configure(image=self.detection_image)
+
+    def _clear_detection_image(self) -> None:
+        self.detection_image = None
+        self.detection_preview_path = None
+        self.detection_preview_mtime = None
+        if self.detection_image_label is not None:
+            self.detection_image_label.configure(image="")
 
     def _progress_text(self, frame: object, total: object) -> str:
         try:
@@ -183,6 +295,12 @@ class HaltControl(tk.Tk):
             return "Progress: -"
 
         return f"Progress: {(frame_number / total_number) * 100:.1f}%"
+
+    def _format_number(self, value: object) -> str:
+        try:
+            return f"{float(value):.1f}"
+        except (TypeError, ValueError):
+            return str(value)
 
 
 def main() -> int:
