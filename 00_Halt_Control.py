@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import tkinter as tk
+import time
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -16,6 +17,8 @@ PAUSE_FILE = CONTROL_DIR / "pause.flag"
 STOP_FILE = CONTROL_DIR / "stop.flag"
 STATUS_FILE = CONTROL_DIR / "scan_status.json"
 DETECTION_STATUS_FILE = CONTROL_DIR / "detection_status.json"
+TERMINAL_SCAN_STATUSES = {"completed", "halted", "failed", "error"}
+AUTO_CLOSE_DELAY_MS = 1500
 
 
 class HaltControl(tk.Tk):
@@ -40,6 +43,8 @@ class HaltControl(tk.Tk):
         self.detection_preview_path: Path | None = None
         self.detection_preview_mtime: float | None = None
         self.detection_image_label: ttk.Label | None = None
+        self.started_at_epoch = time.time()
+        self.auto_close_after_id: str | None = None
 
         self.configure(bg="#eef3f1")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -208,6 +213,7 @@ class HaltControl(tk.Tk):
                 self.progress_var.set(self._progress_text(frame, total))
                 self.updated_var.set(f"Updated: {status.get('updated_at', '-')}")
                 self.message_var.set(status.get("message", ""))
+                self._schedule_auto_close_if_finished(status)
         else:
             self.status_var.set("No scan status yet")
             self.scan_var.set("Scan: -")
@@ -218,6 +224,24 @@ class HaltControl(tk.Tk):
 
         self.refresh_detection()
         self.after(500, self.refresh)
+
+    def _schedule_auto_close_if_finished(self, status: dict[str, object]) -> None:
+        state = str(status.get("status", "")).lower()
+        if state not in TERMINAL_SCAN_STATUSES or self.auto_close_after_id is not None:
+            return
+
+        try:
+            status_mtime = STATUS_FILE.stat().st_mtime
+        except OSError:
+            return
+
+        if status_mtime < self.started_at_epoch:
+            return
+
+        if PAUSE_FILE.exists():
+            return
+
+        self.auto_close_after_id = self.after(AUTO_CLOSE_DELAY_MS, self.destroy)
 
     def refresh_detection(self) -> None:
         if not DETECTION_STATUS_FILE.exists():
@@ -248,14 +272,66 @@ class HaltControl(tk.Tk):
 
         frame = status.get("frame_index", "-")
         count = status.get("detections_in_frame", "-")
+        duplicates_in_frame = status.get("duplicates_in_frame", 0)
+        unique_object_count = status.get("unique_object_count", "-")
+        duplicate_count = status.get("duplicate_count", "-")
+        label = status.get("label", "")
         score = status.get("score", "-")
         centroid_x = status.get("centroid_x_px", "-")
         centroid_y = status.get("centroid_y_px", "-")
-        self.detection_var.set(f"Latest detection: frame {frame} ({count} in frame)")
-        self.detection_detail_var.set(
+        pressure_parts = []
+        if "vacuum_level" in status:
+            level = status.get("vacuum_level")
+            if level is None:
+                pressure_parts.append("Vacuum: unreadable")
+            else:
+                pressure_parts.append(f"Vacuum: {self._format_number(level)}")
+
+            part_on = status.get("vacuum_part_on")
+            if part_on is True:
+                pressure_parts.append("part detected")
+            elif part_on is False:
+                pressure_parts.append("no part detected")
+
+            attempt = status.get("vacuum_attempt")
+            if attempt not in (None, ""):
+                pressure_parts.append(f"attempt {attempt}")
+
+            pick_z = status.get("pick_z_mm")
+            if pick_z not in (None, ""):
+                pressure_parts.append(f"Z {self._format_number(pick_z)} mm")
+
+        qa_parts = []
+        if "qa_mode" in status:
+            qa_parts.append(f"QA: {status.get('qa_mode')}")
+            if status.get("qa_well_empty") is True:
+                qa_parts.append("well empty")
+            elif status.get("qa_well_empty") is False:
+                qa_parts.append("well occupied")
+            if status.get("qa_bug_present") is True:
+                qa_parts.append("bug present")
+            elif status.get("qa_bug_present") is False:
+                qa_parts.append("no bug detected")
+            if "qa_largest_area_px" in status:
+                qa_parts.append(f"largest area {self._format_number(status.get('qa_largest_area_px'))} px")
+            if "qa_dark_fraction" in status:
+                qa_parts.append(f"dark fraction {self._format_number(status.get('qa_dark_fraction'))}")
+
+        label_text = f": {label}" if label else ""
+        self.detection_var.set(
+            f"Latest detection{label_text} | frame {frame} "
+            f"({count} in frame, {duplicates_in_frame} duplicate)"
+        )
+        detail = (
+            f"Unique targets so far: {unique_object_count}   Duplicates so far: {duplicate_count}   "
             f"Centroid: {self._format_number(centroid_x)}, {self._format_number(centroid_y)} px   "
             f"Score: {self._format_number(score)}   Updated: {status.get('updated_at', '-')}"
         )
+        if pressure_parts:
+            detail = f"{detail}\n" + "   ".join(pressure_parts)
+        if qa_parts:
+            detail = f"{detail}\n" + "   ".join(qa_parts)
+        self.detection_detail_var.set(detail)
 
         preview = status.get("preview_file")
         if not preview or self.detection_image_label is None:
@@ -270,9 +346,18 @@ class HaltControl(tk.Tk):
             return
 
         try:
-            self.detection_image = tk.PhotoImage(file=str(preview_path))
+            image = tk.PhotoImage(file=str(preview_path))
         except tk.TclError:
             return
+
+        max_width = 520
+        max_height = 293
+        subsample = max(
+            1,
+            int((image.width() + max_width - 1) / max_width),
+            int((image.height() + max_height - 1) / max_height),
+        )
+        self.detection_image = image.subsample(subsample, subsample)
 
         self.detection_preview_path = preview_path
         self.detection_preview_mtime = mtime
