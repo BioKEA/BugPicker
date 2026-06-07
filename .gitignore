@@ -1,7 +1,7 @@
 # Generated scan data and runtime control files
 scans/
 control/
-data/
+# data/
 datasets/
 outputs/
 artifacts/
@@ -12,7 +12,7 @@ __pycache__/
 *.py[cod]
 
 # Captured/generated images and video
-*.png
+# *.png
 *.jpg
 *.jpeg
 *.tif
