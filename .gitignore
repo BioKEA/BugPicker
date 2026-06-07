@@ -1,3 +1,5 @@
+.DS_Store
+
 # Generated scan data and runtime control files
 scans/
 control/
