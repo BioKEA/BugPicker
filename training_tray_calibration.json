@@ -1,0 +1,17 @@
+{
+  "x_left_mm": 340,
+  "x_right_mm": 399,
+  "y_top_mm": 68,
+  "y_bottom_mm": 96,
+  "camera_x_offset_mm": -23,
+  "camera_y_offset_mm": 64,
+  "scan_bounds_are_camera_coordinates": false,
+  "x_step_mm": 7,
+  "y_step_mm": 7,
+  "tray_height_mm": 12.5,
+  "size_class": "medium",
+  "pick_z_mm": -43.3,
+  "plate_a1_x_mm": 101.1,
+  "plate_a1_y_mm": 150,
+  "plate_well_pitch_mm": 9
+}

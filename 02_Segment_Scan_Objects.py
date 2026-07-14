@@ -22,14 +22,37 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+
+SCRIPT_PATH = Path(__file__).resolve()
+if SCRIPT_PATH.parent.name == "BugPicker" and SCRIPT_PATH.parent.parent.name == "scripts":
+    PROJECT_ROOT = SCRIPT_PATH.parents[2]
+else:
+    PROJECT_ROOT = SCRIPT_PATH.parents[1]
+SCRIPTS_DIR = SCRIPT_PATH.parent
+PREFERRED_PYTHON = PROJECT_ROOT / ".venv/bin/python"
+
 try:
     import cv2
     import numpy as np
 except ModuleNotFoundError as exc:
     missing = exc.name
+    if Path(sys.executable).resolve() != PREFERRED_PYTHON.resolve() and PREFERRED_PYTHON.exists():
+        import os
+
+        os.execv(str(PREFERRED_PYTHON), [str(PREFERRED_PYTHON), str(SCRIPT_PATH), *sys.argv[1:]])
+
+    install_command = (
+        f"{sys.executable} -m pip install -r {SCRIPTS_DIR / 'requirements.txt'}"
+        if (SCRIPTS_DIR / "requirements.txt").exists()
+        else f"{sys.executable} -m pip install numpy opencv-python"
+    )
     print(
-        f"Missing Python package '{missing}'. Install dependencies with:\n"
-        f"  python3 -m pip install -r requirements.txt",
+        f"Missing Python package {missing!r} for interpreter:\n"
+        f"  {sys.executable}\n"
+        f"Install dependencies with:\n"
+        f"  {install_command}\n"
+        f"Or run with the OpenPnP venv:\n"
+        f"  {PREFERRED_PYTHON} {SCRIPT_PATH} <scan_dir>",
         file=sys.stderr,
     )
     raise SystemExit(2) from exc
@@ -46,7 +69,7 @@ MAX_ASPECT_RATIO = 5.00
 MAX_INSIDE_MEAN_INTENSITY = 165
 MIN_BACKGROUND_CONTRAST = 25
 FIXED_DARK_THRESHOLD = 70
-RESISTOR_MIN_AREA_PX = 120
+RESISTOR_MIN_AREA_PX = 180
 RESISTOR_MAX_AREA_FRACTION = 0.01
 RESISTOR_MAX_RECT_AREA_FRACTION = 0.012
 RESISTOR_MAX_SHORT_SIDE_FRACTION = 0.08
@@ -55,7 +78,7 @@ RESISTOR_MIN_RECTANGULARITY = 0.55
 RESISTOR_MIN_ASPECT_RATIO = 1.15
 RESISTOR_MAX_ASPECT_RATIO = 6.00
 RESISTOR_MAX_INSIDE_MEAN_INTENSITY = 115
-RESISTOR_MIN_BACKGROUND_CONTRAST = 18
+RESISTOR_MIN_BACKGROUND_CONTRAST = 22
 CLOSE_KERNEL_SIZE = 13
 OPEN_KERNEL_SIZE = 2
 PINK_MIN_SATURATION = 60
@@ -73,18 +96,28 @@ COLOR_MIN_RECTANGULARITY = 0.20
 COLOR_MAX_SHORT_SIDE_FRACTION = 0.42
 COLOR_MAX_LONG_SIDE_FRACTION = 0.48
 COLOR_MIN_BACKGROUND_CONTRAST = -15
-GLOBAL_DEDUPE_DISTANCE_MM = 6.0
+COLOR_MIN_USEFUL_CONTRAST = 8
+COLOR_MAX_LOW_CONTRAST_MEAN_INTENSITY = 140
+BUG_OUTLINE_MIN_AREA_PX = 3000
+BUG_OUTLINE_MAX_INSIDE_MEAN_INTENSITY = 170
+BUG_OUTLINE_MIN_ABS_CONTRAST = 10
+BUG_BRIGHT_MIN_AREA_PX = 1500
+BUG_BRIGHT_RESIDUAL_THRESHOLD = 13
+BUG_BRIGHT_MIN_ABS_CONTRAST = 12
+BUG_BODY_COLOR_MIN_AREA_PX = 1200
+BUG_BODY_COLOR_MIN_ABS_CONTRAST = 7
+GLOBAL_DEDUPE_DISTANCE_MM = 3.0
 CONTEXT_PADDING_PX = 900
 COORDINATE_TRANSFORM_VERSION = "image_y_inverted_v2"
 GRAYSCALE_MIN_AREA_PX = 1000
 GRAYSCALE_MIN_AXIS_ASPECT_RATIO = 1.9
 GRAYSCALE_MAX_INSIDE_MEAN_INTENSITY = 55
 GRAYSCALE_MIN_RECTANGULARITY = 0.55
-EDGE_MIN_AREA_PX = 3000
-EDGE_MIN_RECTANGULARITY = 0.35
+EDGE_MIN_AREA_PX = 1200
+EDGE_MIN_RECTANGULARITY = 0.42
 EDGE_MIN_ASPECT_RATIO = 1.20
-EDGE_MAX_ASPECT_RATIO = 4.00
-EDGE_MIN_ABS_CONTRAST = 3
+EDGE_MAX_ASPECT_RATIO = 5.00
+EDGE_MIN_ABS_CONTRAST = 6
 EDGE_CANNY_LOW = 18
 EDGE_CANNY_HIGH = 55
 
@@ -96,12 +129,24 @@ LABEL_BACKGROUND_COLOR = (0, 128, 0)
 DUPLICATE_LABEL_BACKGROUND_COLOR = (0, 100, 220)
 LINE_THICKNESS = 2
 CENTROID_MARK_SIZE = 10
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTROL_DIR = PROJECT_ROOT / "control"
 DETECTION_STATUS_FILE = CONTROL_DIR / "detection_status.json"
 DETECTION_PREVIEW_FILE = CONTROL_DIR / "latest_detection_overlay.png"
+TRAINING_TRAY_CALIBRATION_FILE = SCRIPTS_DIR / "training_tray_calibration.json"
+CONTROL_TRAINING_TRAY_CALIBRATION_FILE = CONTROL_DIR / "training_tray_calibration.json"
 PREVIEW_MAX_WIDTH = 520
 PREVIEW_MAX_HEIGHT = 293
+
+DEFAULT_TRAINING_TRAY_CALIBRATION: dict[str, float] = {
+    "x_left_mm": 361.0,
+    "x_right_mm": 411.0,
+    "y_top_mm": 208.0,
+    "y_bottom_mm": 319.0,
+    "camera_x_offset_mm": -23.0,
+    "camera_y_offset_mm": 64.0,
+    "x_step_mm": 8.0,
+    "y_step_mm": 5.0,
+}
 
 
 def write_detection_status(scan_dir: Path, status: str, **values: Any) -> None:
@@ -123,6 +168,7 @@ def write_segmentation_complete(
     duplicate_count: int,
     summary_file: str | None,
     detector: str,
+    calibration: dict[str, Any],
 ) -> None:
     complete_path = scan_dir / "segmentation_complete.json"
     payload = {
@@ -133,13 +179,63 @@ def write_segmentation_complete(
         "candidate_count": candidate_count,
         "duplicate_count": duplicate_count,
         "summary_file": summary_file,
+        "training_tray_calibration_source": calibration.get("source"),
         "processed_frame_count": processed_count,
         "updated_at": datetime.now().isoformat(),
     }
     complete_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def load_manifest(scan_dir: Path) -> list[dict[str, Any]]:
+def load_training_tray_calibration(calibration_path: Path | None = None) -> dict[str, Any]:
+    calibration: dict[str, Any] = dict(DEFAULT_TRAINING_TRAY_CALIBRATION)
+    source = "built-in defaults"
+    candidates = []
+    if calibration_path is not None:
+        candidates.append(calibration_path)
+    candidates.extend([TRAINING_TRAY_CALIBRATION_FILE, CONTROL_TRAINING_TRAY_CALIBRATION_FILE])
+
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        data = json.loads(candidate.read_text(encoding="utf-8"))
+        for key, fallback in DEFAULT_TRAINING_TRAY_CALIBRATION.items():
+            value = data.get(key, fallback)
+            try:
+                calibration[key] = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Calibration value is not numeric: {key}={value!r}") from exc
+        source = str(candidate)
+        break
+
+    calibration["source"] = source
+    return calibration
+
+
+def normalize_manifest_frame(frame: dict[str, Any], calibration: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(frame)
+    camera_x_offset = float(calibration["camera_x_offset_mm"])
+    camera_y_offset = float(calibration["camera_y_offset_mm"])
+
+    if "x_mm" not in normalized and "requested_x_mm" in normalized:
+        normalized["x_mm"] = float(normalized["requested_x_mm"]) + camera_x_offset
+    if "y_mm" not in normalized and "requested_y_mm" in normalized:
+        normalized["y_mm"] = float(normalized["requested_y_mm"]) + camera_y_offset
+    if "requested_x_mm" not in normalized and "x_mm" in normalized:
+        normalized["requested_x_mm"] = float(normalized["x_mm"]) - camera_x_offset
+    if "requested_y_mm" not in normalized and "y_mm" in normalized:
+        normalized["requested_y_mm"] = float(normalized["y_mm"]) - camera_y_offset
+
+    normalized["training_tray_calibration_source"] = calibration.get("source")
+    normalized["training_tray_x_left_mm"] = calibration["x_left_mm"]
+    normalized["training_tray_x_right_mm"] = calibration["x_right_mm"]
+    normalized["training_tray_y_top_mm"] = calibration["y_top_mm"]
+    normalized["training_tray_y_bottom_mm"] = calibration["y_bottom_mm"]
+    normalized["training_camera_x_offset_mm"] = camera_x_offset
+    normalized["training_camera_y_offset_mm"] = camera_y_offset
+    return normalized
+
+
+def load_manifest(scan_dir: Path, calibration: dict[str, Any]) -> list[dict[str, Any]]:
     manifest_path = scan_dir / "manifest.jsonl"
     records: list[dict[str, Any]] = []
     if not manifest_path.exists():
@@ -150,7 +246,7 @@ def load_manifest(scan_dir: Path) -> list[dict[str, Any]]:
             if not line:
                 continue
             try:
-                records.append(json.loads(line))
+                records.append(normalize_manifest_frame(json.loads(line), calibration))
             except json.JSONDecodeError:
                 continue
     return records
@@ -240,7 +336,7 @@ def make_edge_mask(gray: np.ndarray) -> np.ndarray:
     edges = cv2.morphologyEx(
         edges,
         cv2.MORPH_CLOSE,
-        cv2.getStructuringElement(cv2.MORPH_RECT, (35, 35)),
+        cv2.getStructuringElement(cv2.MORPH_RECT, (21, 21)),
     )
     edges = cv2.morphologyEx(
         edges,
@@ -248,6 +344,48 @@ def make_edge_mask(gray: np.ndarray) -> np.ndarray:
         cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)),
     )
     return edges
+
+
+def make_bright_object_mask(gray: np.ndarray) -> np.ndarray:
+    local_background = cv2.GaussianBlur(gray, (0, 0), 45)
+    bright_residual = cv2.subtract(gray, local_background)
+    mask = ((bright_residual > BUG_BRIGHT_RESIDUAL_THRESHOLD) & (gray < 245)).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(
+        mask,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+    )
+    mask = cv2.morphologyEx(
+        mask,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (31, 31)),
+    )
+    return mask
+
+
+def make_body_color_mask(image: np.ndarray) -> np.ndarray:
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    hue = hsv[:, :, 0]
+    saturation = hsv[:, :, 1]
+    value = hsv[:, :, 2]
+    local_background = cv2.GaussianBlur(gray, (0, 0), 45)
+    darker_than_background = gray < (local_background - 10)
+    warm_body = ((hue < 35) | (hue > 145)) & (saturation > 15) & (value < 230)
+    colored_body = (saturation > 22) & (value < 220) & (gray < 205)
+    mask = ((warm_body | colored_body | darker_than_background) & (gray < 230)).astype(np.uint8) * 255
+    mask = cv2.bitwise_and(mask, cv2.bitwise_not(make_pink_mask(image)))
+    mask = cv2.morphologyEx(
+        mask,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)),
+    )
+    mask = cv2.morphologyEx(
+        mask,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (19, 19)),
+    )
+    return mask
 
 
 def contour_contrast(gray: np.ndarray, contour: np.ndarray) -> tuple[float, float, float]:
@@ -303,6 +441,26 @@ def deduplicate_detections(detections: list[dict[str, Any]]) -> list[dict[str, A
         if not any(same_detection(detection, existing) for existing in kept):
             kept.append(detection)
     kept.sort(key=lambda item: (item["centroid_y_px"], item["centroid_x_px"]))
+    return kept
+
+
+def reject_image_edge_detections(
+    detections: list[dict[str, Any]],
+    image_shape: tuple[int, int],
+    margin_px: int = IMAGE_EDGE_REJECT_MARGIN_PX,
+) -> list[dict[str, Any]]:
+    image_height, image_width = image_shape[:2]
+    kept = []
+    for detection in detections:
+        x = detection["axis_bbox_x_px"]
+        y = detection["axis_bbox_y_px"]
+        w = detection["axis_bbox_width_px"]
+        h = detection["axis_bbox_height_px"]
+        if x <= margin_px or y <= margin_px:
+            continue
+        if x + w >= image_width - margin_px or y + h >= image_height - margin_px:
+            continue
+        kept.append(detection)
     return kept
 
 
@@ -559,6 +717,12 @@ def detect_bugs(
             continue
         if contrast < effective_min_background_contrast:
             continue
+        if (
+            color_present
+            and contrast < COLOR_MIN_USEFUL_CONTRAST
+            and mean_intensity > COLOR_MAX_LOW_CONTRAST_MEAN_INTENSITY
+        ):
+            continue
 
         rect = cv2.minAreaRect(contour)
         (_, _), (rect_width, rect_height), angle = rect
@@ -602,7 +766,64 @@ def detect_bugs(
             }
         )
 
-    return deduplicate_detections(detections)
+    outline_detections = detect_rectangles_from_mask(
+        gray,
+        make_edge_mask(gray),
+        method="bug_outline_mask",
+        min_area_px=BUG_OUTLINE_MIN_AREA_PX,
+        max_area_fraction=max_area_fraction,
+        max_rect_area_fraction=max_area_fraction,
+        max_short_side_fraction=effective_max_short_side_fraction,
+        max_long_side_fraction=effective_max_long_side_fraction,
+        min_rectangularity=max(0.40, min_rectangularity),
+        min_aspect_ratio=1.15,
+        max_aspect_ratio=min(max_aspect_ratio, 5.0),
+        max_inside_mean_intensity=BUG_OUTLINE_MAX_INSIDE_MEAN_INTENSITY,
+        min_background_contrast=0,
+        min_abs_contrast=BUG_OUTLINE_MIN_ABS_CONTRAST,
+        require_dark=True,
+    )
+    outline_detections = reject_image_edge_detections(outline_detections, gray.shape)
+
+    bright_detections = detect_rectangles_from_mask(
+        gray,
+        make_bright_object_mask(gray),
+        method="bug_bright_mask",
+        min_area_px=BUG_BRIGHT_MIN_AREA_PX,
+        max_area_fraction=max_area_fraction,
+        max_rect_area_fraction=max_area_fraction,
+        max_short_side_fraction=effective_max_short_side_fraction,
+        max_long_side_fraction=effective_max_long_side_fraction,
+        min_rectangularity=max(0.35, min_rectangularity),
+        min_aspect_ratio=1.15,
+        max_aspect_ratio=max(max_aspect_ratio, 6.0),
+        max_inside_mean_intensity=255,
+        min_background_contrast=0,
+        min_abs_contrast=BUG_BRIGHT_MIN_ABS_CONTRAST,
+        require_dark=False,
+    )
+    bright_detections = reject_image_edge_detections(bright_detections, gray.shape)
+
+    body_color_detections = detect_rectangles_from_mask(
+        gray,
+        make_body_color_mask(image),
+        method="bug_body_color_mask",
+        min_area_px=BUG_BODY_COLOR_MIN_AREA_PX,
+        max_area_fraction=max(max_area_fraction, 0.055),
+        max_rect_area_fraction=max(max_area_fraction, 0.080),
+        max_short_side_fraction=max(effective_max_short_side_fraction, 0.50),
+        max_long_side_fraction=max(effective_max_long_side_fraction, 0.65),
+        min_rectangularity=0.10,
+        min_aspect_ratio=0.65,
+        max_aspect_ratio=max(max_aspect_ratio, 6.0),
+        max_inside_mean_intensity=220,
+        min_background_contrast=-25,
+        min_abs_contrast=BUG_BODY_COLOR_MIN_ABS_CONTRAST,
+        require_dark=False,
+    )
+    body_color_detections = reject_image_edge_detections(body_color_detections, gray.shape)
+
+    return deduplicate_detections(detections + outline_detections + bright_detections + body_color_detections)
 
 
 def image_point_to_machine_coordinates(
@@ -630,6 +851,89 @@ def object_machine_coordinates(frame: dict[str, Any], centroid_x_px: float, cent
         frame["x_mm"],
         frame["y_mm"],
     )
+
+
+def body_biased_pick_point(image: np.ndarray, detection: dict[str, Any]) -> tuple[float, float]:
+    """Choose a pick point near the insect body, not the wing-heavy silhouette center."""
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    saturation = hsv[:, :, 1].astype(np.float32)
+    value = hsv[:, :, 2]
+
+    polygon = np.array(detection["rotated_box_px"], dtype=np.int32)
+    detection_mask = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.fillPoly(detection_mask, [polygon], 255)
+
+    body_pixels = (
+        (detection_mask > 0)
+        & (
+            (gray < 150)
+            | ((saturation > 45) & (value < 230))
+        )
+        & ~((gray > 175) & (saturation < 35))
+    )
+    if int(np.count_nonzero(body_pixels)) < 20:
+        return float(detection["centroid_x_px"]), float(detection["centroid_y_px"])
+
+    weights = (
+        np.maximum(0, 190 - gray.astype(np.float32))
+        + (saturation * 0.8)
+    )
+    weights = np.where(body_pixels, weights, 0.0)
+    total_weight = float(weights.sum())
+    if total_weight <= 0:
+        return float(detection["centroid_x_px"]), float(detection["centroid_y_px"])
+
+    core_pixels = (
+        (detection_mask > 0)
+        & (
+            (gray < 135)
+            | ((saturation > 60) & (value < 215))
+        )
+        & ~((gray > 165) & (saturation < 45))
+    )
+    core_mask = core_pixels.astype(np.uint8)
+    core_mask = cv2.morphologyEx(
+        core_mask,
+        cv2.MORPH_OPEN,
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+    )
+    body_mask = core_mask if int(np.count_nonzero(core_mask)) >= 20 else body_pixels.astype(np.uint8)
+    component_count, labels, stats, _ = cv2.connectedComponentsWithStats(body_mask, 8)
+    best_label = 0
+    best_score = 0.0
+    detection_x = float(detection["centroid_x_px"])
+    detection_y = float(detection["centroid_y_px"])
+    for label in range(1, component_count):
+        area = float(stats[label, cv2.CC_STAT_AREA])
+        if area < 20.0:
+            continue
+        component_pixels = labels == label
+        component_weight = float(weights[component_pixels].sum())
+        if component_weight <= 0:
+            continue
+        yy_component, xx_component = np.nonzero(component_pixels)
+        component_x = float((xx_component * weights[component_pixels]).sum() / component_weight)
+        component_y = float((yy_component * weights[component_pixels]).sum() / component_weight)
+        distance_px = ((component_x - detection_x) ** 2 + (component_y - detection_y) ** 2) ** 0.5
+        score = component_weight / (1.0 + max(0.0, distance_px - 180.0) * 0.01)
+        if score > best_score:
+            best_score = score
+            best_label = label
+
+    if best_label:
+        component_mask = (labels == best_label).astype(np.uint8)
+        distance_to_edge = cv2.distanceTransform(component_mask, cv2.DIST_L2, 5)
+        body_strength = distance_to_edge * 8.0 + (weights * component_mask)
+        _, _, _, max_location = cv2.minMaxLoc(body_strength.astype(np.float32))
+        pick_x = float(max_location[0])
+        pick_y = float(max_location[1])
+        return pick_x, pick_y
+
+    yy, xx = np.indices(gray.shape)
+    pick_x = float((xx * weights).sum() / total_weight)
+    pick_y = float((yy * weights).sum() / total_weight)
+    return pick_x, pick_y
 
 
 def crop_detection(image: np.ndarray, detection: dict[str, Any], padding: int) -> np.ndarray:
@@ -859,20 +1163,22 @@ def draw_records_for_frame(scan_dir: Path, frame_records: list[dict[str, Any]]) 
 def object_record(
     object_index: int,
     frame: dict[str, Any],
+    image: np.ndarray,
     detection: dict[str, Any],
     crop_file: str,
     context_file: str,
     overlay_file: str,
 ) -> dict[str, Any]:
+    pick_centroid_x, pick_centroid_y = body_biased_pick_point(image, detection)
     machine_x, machine_y = object_machine_coordinates(
         frame,
-        detection["centroid_x_px"],
-        detection["centroid_y_px"],
+        pick_centroid_x,
+        pick_centroid_y,
     )
     requested_machine_x, requested_machine_y = image_point_to_machine_coordinates(
         frame,
-        detection["centroid_x_px"],
-        detection["centroid_y_px"],
+        pick_centroid_x,
+        pick_centroid_y,
         frame.get("requested_x_mm", frame["x_mm"]),
         frame.get("requested_y_mm", frame["y_mm"]),
     )
@@ -892,6 +1198,13 @@ def object_record(
         "frame_y_mm": frame["y_mm"],
         "frame_requested_x_mm": frame.get("requested_x_mm"),
         "frame_requested_y_mm": frame.get("requested_y_mm"),
+        "training_tray_calibration_source": frame.get("training_tray_calibration_source"),
+        "training_tray_x_left_mm": frame.get("training_tray_x_left_mm"),
+        "training_tray_x_right_mm": frame.get("training_tray_x_right_mm"),
+        "training_tray_y_top_mm": frame.get("training_tray_y_top_mm"),
+        "training_tray_y_bottom_mm": frame.get("training_tray_y_bottom_mm"),
+        "training_camera_x_offset_mm": frame.get("training_camera_x_offset_mm"),
+        "training_camera_y_offset_mm": frame.get("training_camera_y_offset_mm"),
         "image_width_px": frame["image_width_px"],
         "image_height_px": frame["image_height_px"],
         "units_per_pixel_x_mm": frame["units_per_pixel_x_mm"],
@@ -910,6 +1223,8 @@ def object_record(
         "rect_area_px": detection["rect_area_px"],
         "centroid_x_px": detection["centroid_x_px"],
         "centroid_y_px": detection["centroid_y_px"],
+        "pick_centroid_x_px": pick_centroid_x,
+        "pick_centroid_y_px": pick_centroid_y,
         "estimated_x_mm": machine_x,
         "estimated_y_mm": machine_y,
         "pick_x_mm": machine_x,
@@ -948,6 +1263,13 @@ def csv_fields() -> list[str]:
         "frame_y_mm",
         "frame_requested_x_mm",
         "frame_requested_y_mm",
+        "training_tray_calibration_source",
+        "training_tray_x_left_mm",
+        "training_tray_x_right_mm",
+        "training_tray_y_top_mm",
+        "training_tray_y_bottom_mm",
+        "training_camera_x_offset_mm",
+        "training_camera_y_offset_mm",
         "image_width_px",
         "image_height_px",
         "units_per_pixel_x_mm",
@@ -966,6 +1288,8 @@ def csv_fields() -> list[str]:
         "rect_area_px",
         "centroid_x_px",
         "centroid_y_px",
+        "pick_centroid_x_px",
+        "pick_centroid_y_px",
         "estimated_x_mm",
         "estimated_y_mm",
         "pick_x_mm",
@@ -1067,6 +1391,7 @@ def process_frame(
         record = object_record(
             object_index=object_index,
             frame=frame,
+            image=image,
             detection=detection,
             crop_file=f"objects/{object_name}",
             context_file=f"objects/{context_name}",
@@ -1223,6 +1548,7 @@ def scan_is_done(scan_dir: Path, processed_frames: int) -> bool:
 
 def run(args: argparse.Namespace) -> None:
     scan_dir = args.scan_dir
+    calibration = load_training_tray_calibration(args.training_tray_calibration)
 
     objects_dir = scan_dir / "objects"
     overlays_dir = scan_dir / "overlays"
@@ -1240,6 +1566,7 @@ def run(args: argparse.Namespace) -> None:
         frame_index=None,
         preview_file=None,
         detector=args.detector,
+        training_tray_calibration_source=calibration.get("source"),
         message=f"Segmenting scan images with {args.detector} detector",
     )
 
@@ -1250,7 +1577,7 @@ def run(args: argparse.Namespace) -> None:
         csv_writer.writeheader()
 
         while True:
-            frames = load_manifest(scan_dir)
+            frames = load_manifest(scan_dir, calibration)
             if args.max_frames is not None:
                 frames = frames[: args.max_frames]
 
@@ -1304,6 +1631,7 @@ def run(args: argparse.Namespace) -> None:
         duplicate_count,
         summary_file,
         args.detector,
+        calibration,
     )
 
     target_label = "resistor component" if args.detector == "resistor" else "bug silhouette"
@@ -1337,6 +1665,15 @@ def main() -> int:
     parser.add_argument("--dark-threshold", type=int, default=FIXED_DARK_THRESHOLD)
     parser.add_argument("--crop-padding", type=int, default=12)
     parser.add_argument("--max-frames", type=int, default=None)
+    parser.add_argument(
+        "--training-tray-calibration",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to training_tray_calibration.json. Defaults to the BugPicker copy, "
+            "then control/training_tray_calibration.json, then built-in defaults."
+        ),
+    )
     parser.add_argument("--watch", action="store_true", help="Process frames as they are appended to manifest.jsonl")
     parser.add_argument("--poll-interval", type=float, default=0.5)
     args = parser.parse_args()
