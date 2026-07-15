@@ -1,5 +1,6 @@
 # BugPicker
 
+test
 **An automated insect pick-and-place machine, converted from an [Opulo LumenPnP](https://www.opulo.io/products/lumenpnp).**
 
 BugPicker repurposes an open-source PCB pick-and-place machine — normally used to place electronic components on circuit boards — into a robot that scans a tray of insects, detects them with computer vision, and picks each one up with a vacuum nozzle to sort it into a 96-well plate. The motion platform, cameras, and vacuum hardware are stock LumenPnP; the intelligence lives in the OpenPnP scripts and Python vision tools in this repo.
