@@ -120,6 +120,9 @@ FRAGMENT_RECENTER_MIN_AREA_RATIO = 2.2
 FRAGMENT_RECENTER_MAX_DISTANCE_PX = 240
 FRAGMENT_RECENTER_BBOX_PADDING_PX = 140
 GLOBAL_DEDUPE_DISTANCE_MM = 3.0
+EDGE_PARTIAL_DEDUPE_DISTANCE_MM = 9.0
+EDGE_PARTIAL_DEDUPE_MAX_FRAME_GAP = 80
+EDGE_PARTIAL_FULLER_AREA_RATIO = 1.35
 CONTEXT_PADDING_PX = 900
 COORDINATE_TRANSFORM_VERSION = "image_y_inverted_v2"
 GRAYSCALE_MIN_AREA_PX = 1000
@@ -1160,6 +1163,64 @@ def detection_quality(record: dict[str, Any]) -> float:
     return float(record.get("score") or 0.0) + (float(record.get("bbox_area_px") or 0.0) * 80.0) - edge_penalty
 
 
+def record_edge_clearance_px(record: dict[str, Any]) -> float:
+    image_width = float(record.get("image_width_px") or 0.0)
+    image_height = float(record.get("image_height_px") or 0.0)
+    bbox_x = float(record.get("bbox_x_px") or 0.0)
+    bbox_y = float(record.get("bbox_y_px") or 0.0)
+    bbox_width = float(record.get("bbox_width_px") or 0.0)
+    bbox_height = float(record.get("bbox_height_px") or 0.0)
+    if image_width <= 0 or image_height <= 0 or bbox_width <= 0 or bbox_height <= 0:
+        return 999999.0
+    return min(
+        bbox_x,
+        bbox_y,
+        image_width - (bbox_x + bbox_width),
+        image_height - (bbox_y + bbox_height),
+    )
+
+
+def is_edge_partial_record(record: dict[str, Any]) -> bool:
+    if bool(record.get("edge_partial_detection")):
+        return True
+    return record_edge_clearance_px(record) <= IMAGE_EDGE_REJECT_MARGIN_PX
+
+
+def duplicate_match(
+    record: dict[str, Any],
+    kept: dict[str, Any],
+    minimum_distance_mm: float,
+) -> tuple[bool, float, str]:
+    record_x = float(record.get("centroid_x_mm", record["pick_x_mm"]))
+    record_y = float(record.get("centroid_y_mm", record["pick_y_mm"]))
+    kept_x = float(kept.get("centroid_x_mm", kept["pick_x_mm"]))
+    kept_y = float(kept.get("centroid_y_mm", kept["pick_y_mm"]))
+    dx = record_x - kept_x
+    dy = record_y - kept_y
+    distance = (dx * dx + dy * dy) ** 0.5
+    if distance < minimum_distance_mm:
+        return True, distance, "centroid_distance"
+
+    if not is_edge_partial_record(record):
+        return False, distance, ""
+
+    frame_gap = abs(int(record.get("frame_index", 0)) - int(kept.get("frame_index", 0)))
+    if frame_gap > EDGE_PARTIAL_DEDUPE_MAX_FRAME_GAP:
+        return False, distance, ""
+    if distance >= EDGE_PARTIAL_DEDUPE_DISTANCE_MM:
+        return False, distance, ""
+
+    record_area = float(record.get("bbox_area_px") or 0.0)
+    kept_area = float(kept.get("bbox_area_px") or 0.0)
+    record_quality = detection_quality(record)
+    kept_quality = detection_quality(kept)
+    fuller_kept = kept_area >= (record_area * EDGE_PARTIAL_FULLER_AREA_RATIO)
+    better_kept = kept_quality >= record_quality
+    if fuller_kept or (better_kept and not is_edge_partial_record(kept)):
+        return True, distance, "edge_partial_nearby_fuller"
+    return False, distance, ""
+
+
 def median(values: list[float]) -> float:
     sorted_values = sorted(values)
     count = len(sorted_values)
@@ -1184,17 +1245,29 @@ def apply_duplicate_group_pick_points(
         if len(observations) < 2:
             continue
 
-        pick_x_values = [float(record["pick_x_mm"]) for record in observations]
-        pick_y_values = [float(record["pick_y_mm"]) for record in observations]
-        centroid_x_values = [float(record.get("centroid_x_mm", record["pick_x_mm"])) for record in observations]
-        centroid_y_values = [float(record.get("centroid_y_mm", record["pick_y_mm"])) for record in observations]
+        coordinate_observations = [
+            record for record in observations if not is_edge_partial_record(record)
+        ]
+        if not coordinate_observations:
+            coordinate_observations = observations
+
+        pick_x_values = [float(record["pick_x_mm"]) for record in coordinate_observations]
+        pick_y_values = [float(record["pick_y_mm"]) for record in coordinate_observations]
+        centroid_x_values = [
+            float(record.get("centroid_x_mm", record["pick_x_mm"]))
+            for record in coordinate_observations
+        ]
+        centroid_y_values = [
+            float(record.get("centroid_y_mm", record["pick_y_mm"]))
+            for record in coordinate_observations
+        ]
         requested_pick_x_values = [
             float(record.get("requested_frame_estimated_x_mm", record["pick_x_mm"]))
-            for record in observations
+            for record in coordinate_observations
         ]
         requested_pick_y_values = [
             float(record.get("requested_frame_estimated_y_mm", record["pick_y_mm"]))
-            for record in observations
+            for record in coordinate_observations
         ]
 
         kept["single_frame_pick_x_mm"] = kept["pick_x_mm"]
@@ -1202,6 +1275,7 @@ def apply_duplicate_group_pick_points(
         kept["single_frame_centroid_x_mm"] = kept.get("centroid_x_mm")
         kept["single_frame_centroid_y_mm"] = kept.get("centroid_y_mm")
         kept["duplicate_group_observation_count"] = len(observations)
+        kept["duplicate_group_coordinate_observation_count"] = len(coordinate_observations)
         kept["duplicate_group_object_indices"] = ",".join(
             str(int(record.get("object_index", -1))) for record in observations
         )
@@ -1230,27 +1304,25 @@ def assign_duplicate_metadata(records: list[dict[str, Any]], minimum_distance_mm
         record["is_duplicate"] = False
         record["duplicate_of_object_index"] = None
         record["duplicate_distance_mm"] = None
+        record["duplicate_match_reason"] = None
 
     for record in sorted(records, key=detection_quality, reverse=True):
         duplicate_of: dict[str, Any] | None = None
         duplicate_distance: float | None = None
+        duplicate_reason: str | None = None
         for kept in unique:
-            record_x = float(record.get("centroid_x_mm", record["pick_x_mm"]))
-            record_y = float(record.get("centroid_y_mm", record["pick_y_mm"]))
-            kept_x = float(kept.get("centroid_x_mm", kept["pick_x_mm"]))
-            kept_y = float(kept.get("centroid_y_mm", kept["pick_y_mm"]))
-            dx = record_x - kept_x
-            dy = record_y - kept_y
-            distance = (dx * dx + dy * dy) ** 0.5
-            if distance < minimum_distance_mm:
+            matches, distance, reason = duplicate_match(record, kept, minimum_distance_mm)
+            if matches:
                 duplicate_of = kept
                 duplicate_distance = distance
+                duplicate_reason = reason
                 break
         if duplicate_of is None:
             unique.append(record)
         else:
             record["is_duplicate"] = True
             record["duplicate_distance_mm"] = duplicate_distance
+            record["duplicate_match_reason"] = duplicate_reason
             duplicate_pairs.append((record, duplicate_of))
 
     unique.sort(key=lambda item: (int(item["frame_index"]), int(item["object_index"])))
@@ -1260,6 +1332,7 @@ def assign_duplicate_metadata(records: list[dict[str, Any]], minimum_distance_mm
         record["is_duplicate"] = False
         record["duplicate_of_object_index"] = None
         record["duplicate_distance_mm"] = None
+        record["duplicate_match_reason"] = None
 
     for duplicate, kept in duplicate_pairs:
         duplicate["duplicate_of_object_index"] = kept["object_index"]
@@ -1472,6 +1545,10 @@ def object_record(
     return {
         "object_index": object_index,
         "candidate_index": object_index,
+        "is_duplicate": False,
+        "duplicate_of_object_index": None,
+        "duplicate_distance_mm": None,
+        "duplicate_match_reason": None,
         "frame_index": frame["frame_index"],
         "camera": frame.get("camera", "Top"),
         "detector": detection.get("detector", ""),
@@ -1507,6 +1584,7 @@ def object_record(
         "bbox_width_px": detection["axis_bbox_width_px"],
         "bbox_height_px": detection["axis_bbox_height_px"],
         "bbox_area_px": detection["area_px"],
+        "edge_partial_detection": bool(detection.get("edge_partial_detection")),
         "rotated_box_px_json": json.dumps(detection["rotated_box_px"]),
         "detection_method": detection["detection_method"],
         "rect_width_px": detection["rect_width_px"],
@@ -1548,6 +1626,7 @@ def csv_fields() -> list[str]:
         "is_duplicate",
         "duplicate_of_object_index",
         "duplicate_distance_mm",
+        "duplicate_match_reason",
         "frame_index",
         "camera",
         "detector",
@@ -1583,6 +1662,7 @@ def csv_fields() -> list[str]:
         "bbox_width_px",
         "bbox_height_px",
         "bbox_area_px",
+        "edge_partial_detection",
         "rotated_box_px_json",
         "detection_method",
         "rect_width_px",
@@ -1611,6 +1691,7 @@ def csv_fields() -> list[str]:
         "single_frame_centroid_x_mm",
         "single_frame_centroid_y_mm",
         "duplicate_group_observation_count",
+        "duplicate_group_coordinate_observation_count",
         "duplicate_group_object_indices",
         "coordinate_source_note",
         "rectangularity",

@@ -1,4 +1,6 @@
-Run RUN_BUGPICKER.js from the OpenPnP scripts menu.
+Run RUN_BUGPICKER.js from the OpenPnP scripts menu to scan and plate.
+Run RUN_TAXONOMY.js to classify/review an already completed plate.
+Run RUN_MODEL_UPDATE.js to update training datasets and retrain models.
 
 The numbered scripts are support tools used by BugPicker:
 00_Halt_Control.py                  pause/resume/halt window
@@ -8,3 +10,8 @@ The numbered scripts are support tools used by BugPicker:
 04_Scan_TopCamera_Training_Dataset.js training-data utility
 05_Classify_Review_Targets.py       debris/specimen classifier inference
 06_Retrain_Insect_Debris_Classifier.py offline classifier retraining
+08_Classify_Plate_Taxonomy.py       completed-plate taxonomy classifier
+09_Update_Training_Datasets.py      weekly training-data/model update
+10_Retrain_Taxonomy_Classifier.py   taxonomy Order-head retraining
+11_Evaluate_Taxonomy_Candidate.py   compare active vs candidate taxonomy models
+12_Finetune_Taxonomy_BioCLIP_Backbone.py occasional BioCLIP backbone fine-tuning

@@ -14,13 +14,14 @@ SCRIPTS_DIR = SCRIPT_PATH.parent
 DEFAULT_MODEL_PATH = SCRIPTS_DIR / "Data/insect_debris_classifier.pt"
 PREFERRED_PYTHON = SCRIPTS_DIR / ".venv/bin/python"
 
+if Path(sys.executable) != PREFERRED_PYTHON and PREFERRED_PYTHON.exists():
+    import os
+
+    os.execv(str(PREFERRED_PYTHON), [str(PREFERRED_PYTHON), str(SCRIPT_PATH), *sys.argv[1:]])
+
 try:
     import cv2
 except ModuleNotFoundError as exc:
-    if Path(sys.executable).resolve() != PREFERRED_PYTHON.resolve() and PREFERRED_PYTHON.exists():
-        import os
-
-        os.execv(str(PREFERRED_PYTHON), [str(PREFERRED_PYTHON), str(SCRIPT_PATH), *sys.argv[1:]])
     raise SystemExit(f"Missing dependency {exc.name!r}; run with {PREFERRED_PYTHON}") from exc
 
 from insect_debris_classifier import InsectDebrisClassifier

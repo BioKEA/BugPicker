@@ -1,3 +1,31 @@
 archives/BugPicker_pre_multitray_20260731_scripts_only.tar.gz
 __pycache__/
 .DS_Store
+
+# Python and local environments
+*.py[cod]
+.venv/
+
+# Editor temporary files
+*~
+
+# Local backups
+*.bak
+*.bak-*
+*.backup_*
+
+# Generated training state and reports
+Data/model_update_reports/
+Data/taxonomy_feedback/
+Data/classifier_feedback/debris_training_ledger.jsonl
+Data/classifier_feedback/retrain_report.csv
+Data/insect_debris_classifier_candidate.pt
+Data/taxonomy_classifier_candidate.pt
+
+# QA labels, reports, candidates, and backups. Active QA models can be
+# explicitly staged with git add -f when they are intentionally released.
+Data/qa_feedback/
+
+# Local machine calibration
+multitray_calibration.json
+training_tray_calibration.json

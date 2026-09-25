@@ -218,6 +218,7 @@ def main() -> int:
         state_dict = checkpoint["model_state_dict"] if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint else checkpoint
         model.load_state_dict(state_dict)
     model.to(device)
+    active_metrics = evaluate(model, validation_loader, device) if args.base_model.exists() else None
 
     class_weights = torch.tensor(
         [
@@ -249,6 +250,7 @@ def main() -> int:
         rows.append(
             {
                 "epoch": epoch,
+                "epoch_total": args.epochs,
                 "training_loss": running_loss / max(1, batch_count),
                 **metrics,
             }
@@ -256,6 +258,21 @@ def main() -> int:
         print(json.dumps(rows[-1], sort_keys=True), flush=True)
 
     final_metrics = evaluate(model, all_loader, device)
+    candidate_validation_metrics = evaluate(model, validation_loader, device)
+    promotion_recommended = (
+        active_metrics is None
+        or (
+            candidate_validation_metrics["accuracy"] > active_metrics["accuracy"]
+            and candidate_validation_metrics["false_debris"] <= active_metrics["false_debris"]
+        )
+    )
+    recommendation = (
+        "Promote: the candidate improves accuracy without increasing specimens classified as debris."
+        if promotion_recommended and active_metrics is not None else
+        "Promote: no active debris model was available for comparison."
+        if promotion_recommended else
+        "Do not promote: the candidate does not improve accuracy without increasing specimen-to-debris errors."
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
@@ -289,6 +306,12 @@ def main() -> int:
         "example_count": len(examples),
         "class_counts": class_counts,
         "final_metrics": final_metrics,
+        "candidate_validation_metrics": candidate_validation_metrics,
+        "active_metrics": active_metrics,
+        "active_model": str(args.base_model),
+        "candidate_model": str(args.output),
+        "promotion_recommended": promotion_recommended,
+        "recommendation": recommendation,
         "elapsed_seconds": round(time.time() - start, 1),
         "promoted": promoted,
     }

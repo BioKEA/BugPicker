@@ -1,5 +1,7 @@
 numpy
 opencv-python
+openpyxl
 pillow
 torch
 torchvision
+open_clip_torch

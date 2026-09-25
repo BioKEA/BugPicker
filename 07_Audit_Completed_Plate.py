@@ -55,8 +55,8 @@ def attempt_image_path(attempt: dict, kind: str) -> Path | None:
         names = [attempt.get("bottomImage")]
         parents = [scan_dir / "bottom_inspections", scan_dir]
     elif kind == "well":
-        names = [attempt.get("wellImage")]
-        parents = [scan_dir / "qa" / "wells", scan_dir]
+        names = [attempt.get("wellImage"), attempt.get("topWellImage")]
+        parents = [scan_dir / "qa" / "wells", scan_dir / "qa" / "wells_top", scan_dir]
     else:
         return None
     for name in names:
@@ -106,7 +106,7 @@ def recover_well_from_attempt(plate: str, image_dir: Path, row: dict, attempt: d
     row["Source Scan Image"] = str(attempt.get("sourceScanImage") or "")
     row["HiRes Image"] = str(attempt.get("hiResImage") or "")
     row["Bottom Image"] = str(attempt.get("bottomImage") or "")
-    row["Well Image"] = str(attempt.get("wellImage") or "")
+    row["Well Image"] = str(attempt.get("wellImage") or attempt.get("topWellImage") or "")
     row["Plating Confirmation"] = "manual recovered from plate attempt log"
     return {
         "well": well,
