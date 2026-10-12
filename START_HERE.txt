@@ -1,10 +1,11 @@
-Run RUN_BUGPICKER.js from the OpenPnP scripts menu to scan and plate.
+Open the 00_Run_BugPicker submenu in the OpenPnP scripts menu.
+Run RUN_BUGPICKER.js to scan and plate.
 Run RUN_TAXONOMY.js to classify/review an already completed plate.
 Run RUN_MODEL_UPDATE.js to update training datasets and retrain models.
 
 The numbered scripts are support tools used by BugPicker:
 00_Halt_Control.py                  pause/resume/halt window
-01_Scan_TopCamera_Rectangle.js      main implementation loaded by RUN_BUGPICKER.js
+01_Scan_TopCamera_Rectangle.js      main implementation loaded by 00_Run_BugPicker/RUN_BUGPICKER.js
 02_Segment_Scan_Objects.py          target segmentation
 03_QA_Inspect_Image.py              nozzle and well image QA
 04_Scan_TopCamera_Training_Dataset.js training-data utility

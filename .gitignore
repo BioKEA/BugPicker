@@ -17,6 +17,8 @@ __pycache__/
 # Generated training state and reports
 Data/model_update_reports/
 Data/taxonomy_feedback/
+Data/classifier_feedback/
+Data/tray_touch_tests/
 Data/classifier_feedback/debris_training_ledger.jsonl
 Data/classifier_feedback/retrain_report.csv
 Data/insect_debris_classifier_candidate.pt

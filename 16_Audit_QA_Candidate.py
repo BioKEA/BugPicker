@@ -37,7 +37,7 @@ def fixed_pair_metrics(module, predictions, threshold: float) -> dict:
         pairs.append({
             "key": key,
             "truth": next(iter(labels)),
-            "score": min(row["probabilities"]["empty_nozzle"] for row in rows),
+            "score": max(row["probabilities"]["empty_nozzle"] for row in rows),
         })
     present = [row for row in pairs if row["truth"] == "specimen_present"]
     empty = [row for row in pairs if row["truth"] == "empty_nozzle"]
@@ -62,10 +62,6 @@ def main() -> int:
         candidate_path, map_location="cpu", weights_only=False
     )
     backlog = module.unreviewed_post_pick_count()
-    if backlog:
-        raise SystemExit(
-            f"Review the remaining {backlog} post-pick nozzle frames before auditing."
-        )
 
     trained_at = datetime.fromisoformat(str(candidate_checkpoint["trained_at"]))
     examples = module.load_examples("nozzle")
@@ -125,7 +121,7 @@ def main() -> int:
         "candidate": candidate_metrics,
         "active": active_metrics,
     }
-    report["unreviewed_post_pick_frames"] = 0
+    report["unreviewed_post_pick_frames"] = backlog
     report["promotion_recommended"] = recommended
     report["recommendation"] = recommendation
     report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")

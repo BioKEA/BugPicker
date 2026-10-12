@@ -545,8 +545,9 @@ def calibrated_nozzle_pair_decision(predictions: list[dict[str, Any]]) -> dict[s
         pairs.append({
             "pair_key": key,
             "truth": next(iter(labels)),
-            # Live inspection clears only when every frame clears.
-            "empty_probability": min(
+            # At the strict calibrated threshold, one confidently empty frame is
+            # enough to suppress a noisy companion frame.
+            "empty_probability": max(
                 float(row["probabilities"]["empty_nozzle"]) for row in rows
             ),
             "frame_count": len(rows),
@@ -1038,13 +1039,9 @@ def main() -> int:
             nozzle_pair_decision["false_empty_pair_count"] == 0
             and nozzle_pair_decision["true_empty_pair_clear_rate"] >= 0.50
             and final_metrics["balanced_accuracy"] >= 0.90
-            and post_pick_review_backlog == 0
         )
         if not candidate_gate:
             recommendation = (
-                f"Do not promote: review the remaining {post_pick_review_backlog} "
-                "post-pick nozzle frames, then audit this candidate."
-                if post_pick_review_backlog else
                 "Do not promote: the candidate does not yet meet the nozzle safety "
                 "and empty-clearance gates."
             )

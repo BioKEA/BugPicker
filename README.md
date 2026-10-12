@@ -44,6 +44,8 @@ A small Tkinter GUI provides cooperative **pause / resume / halt** control and a
 |------|-------------|
 | `00_Halt_Control.py` | Tkinter control panel — pause/resume/halt buttons, live scan status, and a preview of the most recent detection. Communicates with the running scan via flag and status files in `control/`. |
 | `01_Scan_TopCamera_Rectangle.js` | The main OpenPnP script (runs inside OpenPnP). Orchestrates the whole run: grid scan, calling the Python detector, picking with vacuum verification, bottom-camera/well QA, placing into wells, and nozzle cleaning. |
+| `00_Run_BugPicker/RUN_MANUAL_PLATE_IMAGING.js` | OpenPnP launcher for hand-plated specimens. Collects plate metadata, calibrates only the HiRes camera over A1, images a selected well range, and updates the normal CSV/XLSX and plate image archive. |
+| `docs/user-guide/` | Maintainable operator guide source, image checklist, builder, and generated HTML/PDF. Run `python3 docs/user-guide/build_user_guide.py` after documentation changes. |
 | `02_Segment_Scan_Objects.py` | OpenCV insect detector. Segments bugs from scan frames, deduplicates across overlapping frames, maps pixels → machine coordinates, and emits `objects.jsonl` for the picker. Runs in `--watch` mode alongside the scan. |
 | `03_QA_Inspect_Image.py` | Image QA tool. Given a captured image, reports whether a well is empty/occupied or whether a bug is stuck on the nozzle. Called repeatedly by the scan script. |
 | `Designs/tray.stl`, `Designs/screentray.stl` | Custom 3D-printable trays for holding insects under the camera. |

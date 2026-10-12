@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BioKEA BugPicker GitHub Push Guide</title>
+<style>
+  @page { size: Letter; margin: 0.65in; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #17212b; font-size: 10.5pt; line-height: 1.42; margin: 0; }
+  h1 { font-size: 25pt; color: #123b55; margin: 0 0 6px; }
+  h2 { font-size: 16pt; color: #0b6574; margin: 24px 0 8px; border-bottom: 1px solid #b8cbd0; padding-bottom: 4px; }
+  h3 { font-size: 12pt; color: #123b55; margin: 16px 0 5px; }
+  p { margin: 6px 0 10px; }
+  ul, ol { margin: 6px 0 10px 22px; padding: 0; }
+  li { margin: 4px 0; }
+  code { font-family: "DejaVu Sans Mono", monospace; background: #edf3f4; padding: 1px 3px; border-radius: 2px; }
+  pre { font-family: "DejaVu Sans Mono", monospace; font-size: 8.6pt; line-height: 1.35; background: #edf3f4; border-left: 4px solid #168396; padding: 9px 11px; white-space: pre-wrap; overflow-wrap: anywhere; break-inside: avoid; }
+  .subtitle { color: #52636c; font-size: 12pt; margin-bottom: 20px; }
+  .meta { color: #64747c; font-size: 9pt; }
+  .note, .warning, .check { padding: 9px 11px; margin: 10px 0; break-inside: avoid; }
+  .note { background: #eaf4f6; border-left: 4px solid #168396; }
+  .warning { background: #fff2df; border-left: 4px solid #c66a16; }
+  .check { background: #edf6ed; border-left: 4px solid #3b7d44; }
+  .page-break { break-before: page; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 9.5pt; }
+  th, td { border: 1px solid #b8c5ca; padding: 6px 7px; text-align: left; vertical-align: top; }
+  th { background: #dfeaec; color: #123b55; }
+  tr { break-inside: avoid; }
+  footer { margin-top: 24px; border-top: 1px solid #b8cbd0; padding-top: 7px; color: #64747c; font-size: 8.5pt; }
+</style>
+</head>
+<body>
+<h1>BioKEA BugPicker GitHub Push Guide</h1>
+<div class="subtitle">A safe, repeatable procedure for publishing BugPicker code and selected active models</div>
+<p class="meta">Repository: <code>/home/biokea-06/.openpnp2/scripts/BugPicker</code><br>
+Remote: <code>https://github.com/BioKEA/BugPicker</code><br>
+Default branch: <code>main</code></p>
+
+<div class="warning"><strong>Primary rule:</strong> do not begin with <code>git add .</code> or <code>git add -A</code>. This working directory contains local labels, reports, model backups, candidate models, and machine calibration. Stage an explicit allowlist and inspect it before committing.</div>
+
+<h2>1. What Git Is Doing</h2>
+<p>Git records snapshots in three steps:</p>
+<ol>
+  <li><strong>Working tree:</strong> files currently on this computer.</li>
+  <li><strong>Staging area:</strong> files selected for the next snapshot with <code>git add</code>.</li>
+  <li><strong>Commit:</strong> a named local snapshot created with <code>git commit</code>.</li>
+</ol>
+<p><code>git push</code> sends committed snapshots to GitHub. It does not send ordinary unstaged files.</p>
+
+<h2>2. Open a Terminal and Enter the Repository</h2>
+<pre>cd /home/biokea-06/.openpnp2/scripts/BugPicker
+pwd
+git status --short
+git branch --show-current
+git remote -v</pre>
+<p>Expected branch: <code>main</code>. Expected remote: <code>origin</code> pointing to the BioKEA BugPicker GitHub project.</p>
+
+<h2>3. Decide What Belongs on GitHub</h2>
+<table>
+  <thead><tr><th>Publish</th><th>Keep local</th></tr></thead>
+  <tbody>
+    <tr><td>Python and JavaScript source</td><td>Raw QA labels and captured images</td></tr>
+    <tr><td>Runner scripts</td><td>Training ledgers and generated reports</td></tr>
+    <tr><td><code>requirements.txt</code>, README, START_HERE</td><td>Candidate and backup model files</td></tr>
+    <tr><td>Spreadsheet template</td><td>Python caches and virtual environments</td></tr>
+    <tr><td>Selected active production models</td><td>Machine-specific calibration, unless intentionally shared</td></tr>
+  </tbody>
+</table>
+<div class="note"><strong>Recommended policy for this project:</strong> publish code plus the active production models. This lets another BugPicker installation run without retraining, while keeping the full training history and local images off GitHub.</div>
+
+<h2>4. Configure <code>.gitignore</code></h2>
+<p>Open the file with the installed terminal editor:</p>
+<pre>nano .gitignore</pre>
+<p>After editing, press <code>Ctrl+O</code>, press <code>Enter</code> to confirm the filename, then press <code>Ctrl+X</code> to exit. Visual Studio Code is also installed, so <code>code .gitignore</code> is an alternative when a graphical editor is preferred.</p>
+<p>Add these rules below any existing rules:</p>
+<pre># Python and local environments
+__pycache__/
+*.py[cod]
+.venv/
+
+# Editor and operating-system files
+.DS_Store
+*~
+
+# Local backups
+*.bak
+*.bak-*
+*.backup_*
+
+# Generated training state and reports
+Data/model_update_reports/
+Data/taxonomy_feedback/
+Data/classifier_feedback/debris_training_ledger.jsonl
+Data/classifier_feedback/retrain_report.csv
+Data/insect_debris_classifier_candidate.pt
+Data/taxonomy_classifier_candidate.pt
+
+# QA labels, reports, candidates, and backups
+Data/qa_feedback/
+
+# Local machine calibration
+multitray_calibration.json
+training_tray_calibration.json</pre>
+
+<div class="warning"><strong>Important:</strong> <code>.gitignore</code> only affects untracked files. If a file is already tracked, Git will continue showing its modifications. Do not use <code>git rm</code> without <code>--cached</code>, because plain <code>git rm</code> also deletes the local file.</div>
+
+<h3>Stop tracking local-only files without deleting them</h3>
+<p>Use this only when the project has agreed that these tracked files should disappear from GitHub:</p>
+<pre>git rm --cached Data/classifier_feedback/insect_debris_feedback.jsonl
+git rm --cached multitray_calibration.json
+git rm --cached training_tray_calibration.json</pre>
+<p>The files remain on this computer. Their removal from repository tracking becomes part of the next commit.</p>
+
+<h3>Active QA models are inside an ignored directory</h3>
+<p>If active QA models should be published, force-add only the two production files:</p>
+<pre>git add -f Data/qa_feedback/models/nozzle_qa_classifier.pt
+git add -f Data/qa_feedback/models/well_qa_classifier.pt</pre>
+<p>Do not force-add the candidate or backup files.</p>
+
+<div class="page-break"></div>
+<h2>5. Synchronize Before Creating the Commit</h2>
+<p>First verify that no updater or scan is currently writing files. Then fetch GitHub changes:</p>
+<pre>git fetch origin
+git status -sb</pre>
+<p>If the first line says the local branch is behind <code>origin/main</code>, integrate those changes before committing:</p>
+<pre>git pull --rebase origin main</pre>
+<div class="warning">If Git reports a conflict, stop and resolve it deliberately. Do not run <code>git reset --hard</code>; that can destroy local work.</div>
+
+<h2>6. Stage the BugPicker Code Explicitly</h2>
+<p>Stage source, launchers, documentation, dependencies, and the spreadsheet template:</p>
+<pre>git add .gitignore
+git add -- '*.py' '*.js'
+git add README.md START_HERE.txt LICENSE requirements.txt
+git add Data/plate_spreadsheet_template.xlsx</pre>
+<p>The quoted globs select files in the repository root and avoid shell surprises. Backup names ending in <code>.bak-...</code> do not match <code>*.js</code>.</p>
+
+<h3>Stage selected active production models</h3>
+<pre>git add Data/insect_debris_classifier.pt
+git add Data/taxonomy_classifier.pt
+git add -f Data/qa_feedback/models/nozzle_qa_classifier.pt
+git add -f Data/qa_feedback/models/well_qa_classifier.pt</pre>
+<p>If models should not be distributed, skip this section. Model files increase clone and repository size because Git stores new versions over time.</p>
+
+<h2>7. Inspect Exactly What Will Be Committed</h2>
+<pre>git status
+git diff --cached --stat
+git diff --cached --name-status
+git diff --cached --check</pre>
+<p>Confirm that the staged list does not contain:</p>
+<ul>
+  <li><code>candidate.pt</code> or <code>backup_...</code> files</li>
+  <li><code>Data/model_update_reports/</code></li>
+  <li>QA labels, raw images, or embedding caches</li>
+  <li>Personal credentials or tokens</li>
+  <li>Unexpected calibration changes</li>
+</ul>
+
+<h3>Remove a mistaken file from staging</h3>
+<pre>git restore --staged path/to/file</pre>
+<p>This removes the file from the next commit without deleting the local file.</p>
+
+<h3>Review source changes in detail</h3>
+<pre>git diff --cached -- '*.py' '*.js' '*.txt' '*.md'</pre>
+
+<h2>8. Run Basic Checks</h2>
+<pre>python3 -m py_compile -- *.py
+git diff --cached --check</pre>
+<p>OpenPnP JavaScript cannot be fully hardware-tested from a terminal. Run relevant OpenPnP workflows carefully after pulling the code onto another machine.</p>
+
+<h2>9. Create the Commit</h2>
+<p>Verify your Git identity:</p>
+<pre>git config user.name
+git config user.email</pre>
+<p>This computer is currently configured as <code>biokea-austin</code> and <code>austin@biokea.ai</code>. To change it for this repository:</p>
+<pre>git config user.name "Your Name"
+git config user.email "your-email@example.com"</pre>
+<p>Create the commit:</p>
+<pre>git commit -m "Add QA training, taxonomy, and plating safeguards"</pre>
+<p>Verify it:</p>
+<pre>git show --stat --oneline HEAD
+git status -sb</pre>
+
+<h2>10. Push to GitHub</h2>
+<pre>git push origin main</pre>
+<p>If authentication is requested, use the organization-approved GitHub method. GitHub does not accept an account password for HTTPS Git operations; typical options are a credential manager, browser authorization, or a personal access token.</p>
+<div class="check"><strong>Successful result:</strong> the command reports that <code>main</code> was updated, and <code>git status -sb</code> no longer says the local branch is ahead of <code>origin/main</code>.</div>
+
+<h2>11. Verify on GitHub</h2>
+<ol>
+  <li>Open the BioKEA BugPicker repository in a browser.</li>
+  <li>Confirm the latest commit message and timestamp.</li>
+  <li>Open several changed source files and verify the expected content.</li>
+  <li>Confirm no local reports, labels, backups, or credentials were published.</li>
+</ol>
+
+<h2>12. Routine Updates Later</h2>
+<pre>cd /home/biokea-06/.openpnp2/scripts/BugPicker
+git fetch origin
+git status -sb
+git pull --rebase origin main
+
+# Stage only intended files
+git add path/to/changed/source.py path/to/changed/runner.js
+
+git diff --cached --check
+git diff --cached --stat
+git commit -m "Describe the change"
+git push origin main</pre>
+
+<h2>13. Troubleshooting</h2>
+<h3>Push rejected because GitHub has newer commits</h3>
+<pre>git pull --rebase origin main
+git push origin main</pre>
+
+<h3>A large or private file is staged but not committed</h3>
+<pre>git restore --staged path/to/file</pre>
+
+<h3>A local-only file is already tracked</h3>
+<pre>git rm --cached path/to/file
+git add .gitignore
+git commit -m "Stop tracking local generated data"</pre>
+
+<h3>GitHub rejects a file larger than 100 MB</h3>
+<p>Remove it from staging or the unpushed commit. Do not repeatedly commit the same large file. Large production artifacts should use Git LFS or a release/artifact store chosen by BioKEA.</p>
+
+<h3>Undo the most recent commit before pushing, while keeping the files</h3>
+<pre>git reset --soft HEAD~1</pre>
+<p>Use this only for a commit that has not been pushed. Review the staged files again afterward.</p>
+
+<h3>Check whether a file is ignored</h3>
+<pre>git check-ignore -v path/to/file</pre>
+
+<h2>Final Checklist</h2>
+<ul>
+  <li>The scan/model updater is not writing files.</li>
+  <li><code>git fetch origin</code> has been run.</li>
+  <li>The staged file list contains only intentional project assets.</li>
+  <li>No candidate models, backups, reports, raw labels, tokens, or private data are staged.</li>
+  <li>Basic checks pass.</li>
+  <li>The commit message describes the release.</li>
+  <li>The pushed commit is visible and correct on GitHub.</li>
+</ul>
+
+<footer>Generated for the BioKEA BugPicker workstation on September 24, 2026. Review organization policies before publishing datasets, specimens, credentials, or trained model artifacts.</footer>
+</body>
+</html>

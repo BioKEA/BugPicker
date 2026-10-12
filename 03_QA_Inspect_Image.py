@@ -20,6 +20,7 @@ from torchvision import models, transforms
 SCRIPT_DIR = Path(__file__).resolve().parent
 NOZZLE_QA_MODEL = SCRIPT_DIR / "Data/qa_feedback/models/nozzle_qa_classifier.pt"
 WELL_QA_MODEL = SCRIPT_DIR / "Data/qa_feedback/models/well_qa_classifier.pt"
+LIVE_NOZZLE_EMPTY_THRESHOLD = 0.95
 
 
 class SmallQaCnn(nn.Module):
@@ -94,12 +95,16 @@ def inspect_nozzle_model(image: np.ndarray) -> dict[str, Any] | None:
         label: float(probabilities[index].item())
         for index, label in enumerate(classes)
     }
-    empty_threshold = float(checkpoint.get("empty_confidence_threshold", 0.95))
+    checkpoint_empty_threshold = float(
+        checkpoint.get("empty_confidence_threshold", LIVE_NOZZLE_EMPTY_THRESHOLD)
+    )
+    empty_threshold = min(checkpoint_empty_threshold, LIVE_NOZZLE_EMPTY_THRESHOLD)
     confidently_empty = probability_by_class["empty_nozzle"] >= empty_threshold
     return {
         "model_classes": classes,
         "model_probabilities": probability_by_class,
         "model_empty_threshold": empty_threshold,
+        "model_checkpoint_empty_threshold": checkpoint_empty_threshold,
         "model_confidently_empty": confidently_empty,
         "model_bug_present": not confidently_empty,
         "model_path": str(NOZZLE_QA_MODEL),

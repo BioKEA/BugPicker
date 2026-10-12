@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BioKEA BugPicker Second Computer Setup</title>
+<style>
+@page{size:Letter;margin:.65in}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#17212b;font-size:10.5pt;line-height:1.42;margin:0}h1{font-size:24pt;color:#123b55;margin:0 0 5px}h2{font-size:15pt;color:#0b6574;border-bottom:1px solid #b8cbd0;padding-bottom:3px;margin:20px 0 7px}p{margin:5px 0 9px}ol,ul{margin:5px 0 10px 22px}li{margin:3px 0}code{font-family:"DejaVu Sans Mono",monospace;background:#edf3f4;padding:1px 3px}pre{font-family:"DejaVu Sans Mono",monospace;font-size:8.5pt;line-height:1.35;background:#edf3f4;border-left:4px solid #168396;padding:8px 10px;white-space:pre-wrap;break-inside:avoid}.sub{color:#52636c;font-size:12pt;margin-bottom:18px}.warn,.note,.check{padding:9px 11px;margin:9px 0;break-inside:avoid}.warn{background:#fff2df;border-left:4px solid #c66a16}.note{background:#eaf4f6;border-left:4px solid #168396}.check{background:#edf6ed;border-left:4px solid #3b7d44}.page{break-before:page}footer{border-top:1px solid #b8cbd0;margin-top:20px;padding-top:6px;color:#64747c;font-size:8.5pt}
+</style></head><body>
+<h1>BioKEA BugPicker</h1><div class="sub">Second Computer Setup Guide</div>
+<div class="warn"><strong>Before starting:</strong> confirm that commit <code>286f60c</code>, or a newer release, appears in the BioKEA/BugPicker GitHub repository. Never place a personal access token in this document or in the repository.</div>
+<h2>1. Prepare the OpenPnP scripts directory</h2>
+<pre>mkdir -p ~/.openpnp2/scripts
+cd ~/.openpnp2/scripts
+ls -ld ~/.openpnp2/scripts/BugPicker</pre>
+<p>If BugPicker already exists, preserve it before cloning:</p><pre>mv ~/.openpnp2/scripts/BugPicker ~/.openpnp2/scripts/BugPicker_before_github</pre>
+<h2>2. Clone BugPicker</h2>
+<pre>cd ~/.openpnp2/scripts
+git clone https://github.com/BioKEA/BugPicker.git
+cd BugPicker</pre>
+<p>If prompted, enter your GitHub username and use an approved personal access token as the password. Nothing is displayed while pasting a terminal password.</p>
+<div class="note">Use <code>git clone</code>, not Download ZIP. Cloning preserves repository structure and supports later updates.</div>
+<h2>3. Verify the location</h2>
+<pre>pwd
+ls</pre>
+<p>The path should end in <code>/.openpnp2/scripts/BugPicker</code>. Confirm that <code>00_Run_BugPicker/RUN_BUGPICKER.js</code>, numbered scripts, <code>requirements.txt</code>, and <code>Data/</code> are present.</p>
+<h2>4. Create the Python environment</h2>
+<pre>cd ~/.openpnp2/scripts/BugPicker
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r requirements.txt</pre>
+<p>If the venv module is unavailable:</p><pre>sudo apt update
+sudo apt install python3-venv</pre>
+<p>Then repeat the environment commands.</p>
+<h2>5. Verify active models</h2>
+<pre>ls -lh \
+  Data/insect_debris_classifier.pt \
+  Data/taxonomy_classifier.pt \
+  Data/qa_feedback/models/nozzle_qa_classifier.pt \
+  Data/qa_feedback/models/well_qa_classifier.pt</pre>
+<p>All four files must be listed. If one is missing, confirm it was committed and pushed from the first computer.</p>
+<div class="page"></div>
+<h2>6. Configure OpenPnP hardware</h2>
+<p>GitHub intentionally does not install machine-specific configuration or calibration. Configure the second system’s cameras, USB devices, axes, soft limits, head, nozzle, vacuum actuator, trays, plates, and recovery plate.</p>
+<div class="warn">Do not blindly copy <code>machine.xml</code> when hardware ports, camera paths, or motion limits may differ. A matching machine configuration is only a starting point and must be verified before motion.</div>
+<p>Verify the names expected by BugPicker:</p>
+<ul><li>Head <code>H1</code></li><li>Pick nozzle <code>N1</code></li><li>Cameras <code>Top</code>, <code>Bottom</code>, and the configured HiRes camera</li><li>BugPicker vacuum actuator</li></ul>
+<h2>7. Calibrate the second machine</h2>
+<p>Use BugPicker setup/calibration to configure sorting-tray bounds and pick height, plate A1, well pitch, Top-camera plate A1, HiRes plate position and focus, bottom inspection, recovery plate, motion limits, and travel height.</p>
+<p>This creates local files:</p><pre>~/.openpnp2/scripts/BugPicker/multitray_calibration.json
+~/.openpnp2/scripts/BugPicker/training_tray_calibration.json</pre>
+<p>These are ignored by Git because they are machine-specific.</p>
+<h2>8. Run software checks</h2>
+<pre>cd ~/.openpnp2/scripts/BugPicker
+python3 -m py_compile -- *.py
+git status -sb</pre>
+<h2>9. Test safely</h2>
+<ol><li>Confirm Top, Bottom, and HiRes live feeds.</li><li>Verify calibration moves at travel height.</li><li>Run a dry or limited scan.</li><li>Test bottom-nozzle QA with empty and occupied states.</li><li>Test Lumen well detection and conditional HiRes imaging.</li><li>Complete one pick and placement before attempting a full plate.</li></ol>
+<div class="warn">Keep the machine stop control immediately available during initial motion tests.</div>
+<h2>10. Install future updates</h2>
+<pre>cd ~/.openpnp2/scripts/BugPicker
+git status -sb
+git pull --ff-only origin main
+.venv/bin/pip install -r requirements.txt</pre>
+<p>Restart OpenPnP after updating. If Git reports local changes, review them; do not use <code>git reset --hard</code>.</p>
+<h2>Final Checklist</h2>
+<div class="check">&#9744; Correct repository path<br>&#9744; Python environment created<br>&#9744; Requirements installed<br>&#9744; Four active models present<br>&#9744; Devices configured<br>&#9744; Local calibration completed<br>&#9744; Camera feeds and safe motion verified<br>&#9744; One-pick test completed</div>
+<footer>BioKEA BugPicker second-computer deployment guide, generated September 25, 2026.</footer>
+</body></html>

@@ -1,0 +1,229 @@
+BioKEA BugPicker: Second Computer Setup Guide
+================================================
+
+Purpose
+-------
+Install the GitHub version of BugPicker in the correct OpenPnP directory,
+create its Python environment, verify the active ML models, and configure the
+second machine safely.
+
+Important
+---------
+The code must be successfully pushed from the first computer before these
+instructions are used. Confirm that commit 286f60c (or a newer commit) appears
+on the BioKEA/BugPicker GitHub page.
+
+Do not email or copy a GitHub personal access token into this document.
+
+
+1. Open a terminal on the second computer
+------------------------------------------
+
+Create the OpenPnP scripts directory:
+
+    mkdir -p ~/.openpnp2/scripts
+    cd ~/.openpnp2/scripts
+
+
+2. Check whether a BugPicker directory already exists
+------------------------------------------------------
+
+Run:
+
+    ls -ld ~/.openpnp2/scripts/BugPicker
+
+If it says the directory does not exist, continue to Step 3.
+
+If a BugPicker directory already exists, do not overwrite it. Rename it first:
+
+    mv ~/.openpnp2/scripts/BugPicker ~/.openpnp2/scripts/BugPicker_before_github
+
+
+3. Clone the GitHub repository into the correct location
+---------------------------------------------------------
+
+Run:
+
+    cd ~/.openpnp2/scripts
+    git clone https://github.com/BioKEA/BugPicker.git
+    cd BugPicker
+
+If GitHub requests credentials:
+
+    Username: your GitHub username
+    Password: your approved GitHub personal access token
+
+Use the token, not your normal GitHub password. Nothing appears while pasting
+into a terminal password prompt; press Enter after pasting.
+
+Do not use GitHub's Download ZIP option. A Git clone preserves the repository
+structure and supports future updates.
+
+
+4. Verify the file structure
+----------------------------
+
+Run:
+
+    pwd
+    ls
+
+The path printed by pwd should be:
+
+    /home/YOUR-USERNAME/.openpnp2/scripts/BugPicker
+
+The folder should contain files such as:
+
+    00_Run_BugPicker/RUN_BUGPICKER.js
+    01_Scan_TopCamera_Rectangle.js
+    02_Segment_Scan_Objects.py
+    requirements.txt
+    Data/
+
+
+5. Create the Python environment
+--------------------------------
+
+Run:
+
+    cd ~/.openpnp2/scripts/BugPicker
+    python3 -m venv .venv
+    .venv/bin/pip install --upgrade pip
+    .venv/bin/pip install -r requirements.txt
+
+If python3 reports that the venv module is unavailable, run:
+
+    sudo apt update
+    sudo apt install python3-venv
+
+Then repeat the four environment commands above.
+
+
+6. Verify the active ML models
+------------------------------
+
+Run this as one command:
+
+    ls -lh \
+      Data/insect_debris_classifier.pt \
+      Data/taxonomy_classifier.pt \
+      Data/qa_feedback/models/nozzle_qa_classifier.pt \
+      Data/qa_feedback/models/well_qa_classifier.pt
+
+All four files should be listed. If any are missing, stop and confirm that the
+active models were committed and pushed from the first computer.
+
+
+7. Understand what GitHub does not install
+------------------------------------------
+
+The following are machine-specific and intentionally not obtained from GitHub:
+
+    - OpenPnP machine configuration
+    - Camera and USB device assignments
+    - Axis and soft-limit configuration
+    - Head, nozzle, and vacuum-actuator configuration
+    - Sorting-tray calibration
+    - Plate and recovery-plate calibration
+    - Local training labels, reports, and model backups
+
+The second system must be configured and calibrated for its own hardware.
+
+Do not blindly copy machine.xml when camera device paths, serial ports, axis
+limits, or other hardware assignments may differ. A configuration from an
+identical system can be used as a starting point only after every motion and
+device assignment is checked.
+
+
+8. Required OpenPnP names
+-------------------------
+
+Verify the machine configuration expected by BugPicker, including:
+
+    Head: H1
+    Pick nozzle: N1
+    Cameras: Top, Bottom, and the configured HiRes camera
+    Vacuum actuator: the BugPicker vacuum actuator
+
+Confirm each live camera feed before attempting motion.
+
+
+9. Calibrate the second machine
+-------------------------------
+
+Start OpenPnP and run the BugPicker setup/calibration workflow. Calibrate:
+
+    - Sorting-tray scan bounds and pick height
+    - Top-camera offsets and scan geometry
+    - Plate A1 and well pitch
+    - Lumen Top-camera plate A1
+    - HiRes plate A1 and focus height
+    - Bottom-camera nozzle inspection position
+    - Recovery-plate A1 and wipe height
+    - Motion limits and safe travel height
+
+The calibration workflow will create local files such as:
+
+    ~/.openpnp2/scripts/BugPicker/multitray_calibration.json
+    ~/.openpnp2/scripts/BugPicker/training_tray_calibration.json
+
+These files are ignored by Git because they belong to the individual machine.
+
+
+10. Run software checks
+-----------------------
+
+Close any model trainer or scan process, then run:
+
+    cd ~/.openpnp2/scripts/BugPicker
+    python3 -m py_compile -- *.py
+    git status -sb
+
+The Python command should finish without an error. Local calibration files may
+exist without appearing in git status because they are ignored.
+
+
+11. Restart and test OpenPnP safely
+-----------------------------------
+
+Restart OpenPnP so it discovers the scripts and models. Test in this order:
+
+    1. Confirm Top, Bottom, and HiRes live feeds.
+    2. Verify tray and plate calibration moves at travel height.
+    3. Run a dry or limited scan.
+    4. Verify bottom-nozzle QA with an empty and occupied nozzle.
+    5. Verify Lumen well detection.
+    6. Verify HiRes well imaging occurs after positive Lumen detection.
+    7. Test one pick and placement before attempting a full plate.
+
+Keep a hand near the machine stop control during initial motion tests.
+
+
+12. Install future updates
+--------------------------
+
+On the second computer:
+
+    cd ~/.openpnp2/scripts/BugPicker
+    git status -sb
+    git pull --ff-only origin main
+    .venv/bin/pip install -r requirements.txt
+
+Restart OpenPnP after an update.
+
+If git pull reports local changes, do not use git reset --hard. Review the local
+changes first so calibration or machine-specific work is not lost.
+
+
+Final checklist
+---------------
+
+    [ ] Repository cloned to ~/.openpnp2/scripts/BugPicker
+    [ ] Python .venv created
+    [ ] requirements.txt installed
+    [ ] All four active models present
+    [ ] OpenPnP cameras and devices configured
+    [ ] Second-machine calibration completed
+    [ ] Camera feeds tested
+    [ ] Safe motion verified
+    [ ] One-pick test completed before a full run
