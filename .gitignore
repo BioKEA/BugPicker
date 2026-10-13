@@ -16,6 +16,7 @@ __pycache__/
 
 # Generated training state and reports
 Data/model_update_reports/
+Data/github_sync/
 Data/taxonomy_feedback/
 Data/classifier_feedback/
 Data/tray_touch_tests/

@@ -118,7 +118,7 @@ with (imports) {
         progressBar.setString('0 / ' + totalImages);
         center.add(progressBar, BorderLayout.NORTH);
 
-        var details = new JTextArea(9, 72);
+        var details = new JTextArea(7, 60);
         details.setEditable(false);
         details.setLineWrap(true);
         details.setWrapStyleWord(true);
@@ -148,7 +148,7 @@ with (imports) {
         }));
 
         frame.pack();
-        frame.setLocationRelativeTo(null);
+        frame.setLocation(30, 30);
         frame.setVisible(true);
 
         return {

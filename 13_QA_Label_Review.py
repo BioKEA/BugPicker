@@ -586,7 +586,8 @@ def run_gui(candidates: list[Candidate], mode: str, label_file: Path) -> int:
     labels = WELL_LABEL_CHOICES if mode == "well" else NOZZLE_LABEL_CHOICES
     root = tk.Tk()
     root.title(f"BugPicker QA Label Review - {mode}")
-    root.geometry("1180x820")
+    root.geometry("1000x720+20+20")
+    root.minsize(820, 580)
 
     state = {
         "index": 0,
@@ -655,7 +656,7 @@ def run_gui(candidates: list[Candidate], mode: str, label_file: Path) -> int:
         )
         try:
             image = Image.open(candidate.image_path).convert("RGB")
-            image.thumbnail((1120, 610), Image.Resampling.LANCZOS)
+            image.thumbnail((940, 500), Image.Resampling.LANCZOS)
             state["photo"] = ImageTk.PhotoImage(image)
             image_label.config(image=state["photo"], text="")
         except Exception as error:

@@ -222,7 +222,8 @@ def review_predictions(
     decisions: list[dict[str, Any]] = []
     root = tk.Tk()
     root.title(f"BugPicker Taxonomy Review - P-{plate}")
-    root.geometry("1280x900")
+    root.geometry("1050x760+20+20")
+    root.minsize(850, 620)
 
     title_var = tk.StringVar()
     prediction_var = tk.StringVar()
@@ -270,7 +271,7 @@ def review_predictions(
 
     def scaled_photo(path: Path) -> Any:
         image = Image.open(path).convert("RGB")
-        image.thumbnail((570, 320), Image.Resampling.LANCZOS)
+        image.thumbnail((480, 255), Image.Resampling.LANCZOS)
         return ImageTk.PhotoImage(image)
 
     def load_current() -> None:

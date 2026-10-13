@@ -73,7 +73,7 @@ with (imports) {
         statusLabel.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
         frame.add(statusLabel, BorderLayout.NORTH);
 
-        var logArea = new JTextArea(16, 88);
+        var logArea = new JTextArea(12, 72);
         logArea.setEditable(false);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         frame.add(new JScrollPane(logArea), BorderLayout.CENTER);
@@ -144,7 +144,7 @@ with (imports) {
         }));
 
         frame.pack();
-        frame.setLocationRelativeTo(null);
+        frame.setLocation(30, 30);
         frame.setVisible(true);
         timer.start();
     }

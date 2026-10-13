@@ -735,14 +735,40 @@ with (imports) {
         var DefaultComboBoxModel = Packages.javax.swing.DefaultComboBoxModel;
         var JScrollPane = Packages.javax.swing.JScrollPane;
         var Dimension = Packages.java.awt.Dimension;
+        var GridBagLayout = Packages.java.awt.GridBagLayout;
+        var GridBagConstraints = Packages.java.awt.GridBagConstraints;
+        var Insets = Packages.java.awt.Insets;
+        var BoxLayout = Packages.javax.swing.BoxLayout;
         var multiConfig = calibration.multiConfig
             ? clonePlainObject(calibration.multiConfig)
             : defaultMultiTrayCalibration(calibration);
 
         while (true) {
             var panel = new JPanel(new BorderLayout(10, 10));
-            var topPanel = new JPanel(new GridLayout(0, 2, 8, 6));
+            var topPanel = new JPanel(new GridBagLayout());
             topPanel.setBorder(BorderFactory.createTitledBorder('Run layout'));
+
+            function compactWidth(component, width) {
+                var preferred = component.getPreferredSize();
+                component.setPreferredSize(new Dimension(width, preferred.height));
+                return component;
+            }
+
+            function addCompactCell(container, component, column, row, weightX) {
+                var constraints = new GridBagConstraints();
+                constraints.gridx = column;
+                constraints.gridy = row;
+                constraints.anchor = GridBagConstraints.WEST;
+                constraints.fill = GridBagConstraints.NONE;
+                constraints.weightx = weightX || 0.0;
+                constraints.insets = new Insets(3, 5, 3, 5);
+                container.add(component, constraints);
+            }
+
+            function addCompactRow(container, row, label, component) {
+                addCompactCell(container, new JLabel(label), 0, row, 0.0);
+                addCompactCell(container, component, 1, row, 1.0);
+            }
 
             function countBox(maxCount, selectedCount) {
                 var model = new DefaultComboBoxModel();
@@ -756,15 +782,19 @@ with (imports) {
 
             var eventCountBox = countBox(2, multiConfig.active_collection_event_count);
             var trayCountBox = countBox(4, multiConfig.active_sorting_tray_count);
+            compactWidth(eventCountBox, 82);
+            compactWidth(trayCountBox, 82);
             var classifierModeModel = new DefaultComboBoxModel();
             classifierModeModel.addElement('Train Debris Classifier');
             classifierModeModel.addElement('Auto-Debris Classifier');
             var classifierModeBox = new JComboBox(classifierModeModel);
+            compactWidth(classifierModeBox, 190);
             classifierModeBox.setSelectedIndex(String(multiConfig.shared.debris_classifier_mode || 'train') === 'auto' ? 1 : 0);
             var taxonomyModeModel = new DefaultComboBoxModel();
             taxonomyModeModel.addElement('Train Taxonomy');
             taxonomyModeModel.addElement('Auto Taxonomy');
             var taxonomyModeBox = new JComboBox(taxonomyModeModel);
+            compactWidth(taxonomyModeBox, 155);
             taxonomyModeBox.setSelectedIndex(String(multiConfig.shared.taxonomy_classifier_mode || 'train') === 'auto' ? 1 : 0);
             var autoReplateBox = new JCheckBox(
                 'Continue with remaining targets (single plate)',
@@ -774,22 +804,15 @@ with (imports) {
             if (!autoReplateBox.isEnabled()) {
                 autoReplateBox.setSelected(false);
             }
-            topPanel.add(new JLabel('Collection events'));
-            topPanel.add(eventCountBox);
-            topPanel.add(new JLabel('Sorting trays'));
-            topPanel.add(trayCountBox);
-            topPanel.add(new JLabel('96-well plates'));
-            topPanel.add(new JLabel('One per collection event'));
-            topPanel.add(new JLabel('Recovery plates'));
-            topPanel.add(new JLabel('One per collection event'));
-            topPanel.add(new JLabel('Debris classifier'));
-            topPanel.add(classifierModeBox);
-            topPanel.add(new JLabel('Taxonomy'));
-            topPanel.add(taxonomyModeBox);
-            topPanel.add(new JLabel('Auto re-plate'));
-            topPanel.add(autoReplateBox);
+            addCompactRow(topPanel, 0, 'Collection events', eventCountBox);
+            addCompactRow(topPanel, 1, 'Sorting trays', trayCountBox);
+            addCompactRow(topPanel, 2, '96-well plates', new JLabel('One per collection event'));
+            addCompactRow(topPanel, 3, 'Recovery plates', new JLabel('One per collection event'));
+            addCompactRow(topPanel, 4, 'Debris classifier', classifierModeBox);
+            addCompactRow(topPanel, 5, 'Taxonomy', taxonomyModeBox);
+            addCompactRow(topPanel, 6, 'Auto re-plate', autoReplateBox);
 
-            var eventsPanel = new JPanel(new GridLayout(0, 4, 8, 6));
+            var eventsPanel = new JPanel(new GridBagLayout());
             eventsPanel.setBorder(BorderFactory.createTitledBorder('Collection events'));
             var collectionCodeFields = [];
             var plateNumberFields = [];
@@ -814,10 +837,10 @@ with (imports) {
             function rebuildEventRows() {
                 saveVisibleEventFields();
                 eventsPanel.removeAll();
-                eventsPanel.add(new JLabel('Event'));
-                eventsPanel.add(new JLabel('Collection code'));
-                eventsPanel.add(new JLabel('Plate number'));
-                eventsPanel.add(new JLabel('Start well'));
+                addCompactCell(eventsPanel, new JLabel('Event'), 0, 0, 0.0);
+                addCompactCell(eventsPanel, new JLabel('Collection code'), 1, 0, 0.0);
+                addCompactCell(eventsPanel, new JLabel('Plate number'), 2, 0, 0.0);
+                addCompactCell(eventsPanel, new JLabel('Start well'), 3, 0, 1.0);
                 var visibleEventCount = selectedOneBasedIndex(eventCountBox);
                 for (var eventSlot = 1; eventSlot <= visibleEventCount; eventSlot++) {
                     var eventConfig = multiSlotByNumber(multiConfig.collection_events, 'event_slot', eventSlot);
@@ -825,20 +848,23 @@ with (imports) {
                     var collectionCodeField = new JTextField(String(eventConfig ? eventConfig.collection_code || '' : ''), 10);
                     var plateNumberField = new JTextField(String(plateConfig ? plateConfig.plate_number || ('AA000' + eventSlot) : ('AA000' + eventSlot)), 10);
                     var startWellField = new JTextField(String(plateConfig ? plateConfig.start_well || 'A1' : 'A1'), 6);
+                    compactWidth(collectionCodeField, 140);
+                    compactWidth(plateNumberField, 110);
+                    compactWidth(startWellField, 72);
                     collectionCodeFields[eventSlot] = collectionCodeField;
                     plateNumberFields[eventSlot] = plateNumberField;
                     startWellFields[eventSlot] = startWellField;
-                    eventsPanel.add(new JLabel('Event ' + eventSlot));
-                    eventsPanel.add(collectionCodeField);
-                    eventsPanel.add(plateNumberField);
-                    eventsPanel.add(startWellField);
+                    addCompactCell(eventsPanel, new JLabel('Event ' + eventSlot), 0, eventSlot, 0.0);
+                    addCompactCell(eventsPanel, collectionCodeField, 1, eventSlot, 0.0);
+                    addCompactCell(eventsPanel, plateNumberField, 2, eventSlot, 0.0);
+                    addCompactCell(eventsPanel, startWellField, 3, eventSlot, 1.0);
                 }
                 eventsPanel.revalidate();
                 eventsPanel.repaint();
             }
             rebuildEventRows();
 
-            var traysPanel = new JPanel(new GridLayout(0, 2, 8, 6));
+            var traysPanel = new JPanel(new GridBagLayout());
             traysPanel.setBorder(BorderFactory.createTitledBorder('Sorting tray assignments'));
             var trayEventBoxes = [];
 
@@ -856,6 +882,7 @@ with (imports) {
                 model.addElement('Event 1');
                 model.addElement('Event 2');
                 var box = new JComboBox(model);
+                compactWidth(box, 105);
                 box.setSelectedIndex(Math.max(0, Math.min(1, Number(selectedEventSlot || 1) - 1)));
                 return box;
             }
@@ -864,15 +891,15 @@ with (imports) {
                 saveVisibleTrayFields();
                 trayEventBoxes = [];
                 traysPanel.removeAll();
-                traysPanel.add(new JLabel('Sorting tray'));
-                traysPanel.add(new JLabel('Collection event'));
+                addCompactCell(traysPanel, new JLabel('Sorting tray'), 0, 0, 0.0);
+                addCompactCell(traysPanel, new JLabel('Collection event'), 1, 0, 1.0);
                 var visibleTrayCount = selectedOneBasedIndex(trayCountBox);
                 for (var traySlot = 1; traySlot <= visibleTrayCount; traySlot++) {
                     var trayConfig = multiSlotByNumber(multiConfig.sorting_trays, 'tray_slot', traySlot);
                     var trayEventBox = eventAssignmentBox(trayConfig ? trayConfig.collection_event_slot : 1);
                     trayEventBoxes[traySlot] = trayEventBox;
-                    traysPanel.add(new JLabel('Tray ' + traySlot));
-                    traysPanel.add(trayEventBox);
+                    addCompactCell(traysPanel, new JLabel('Tray ' + traySlot), 0, traySlot, 0.0);
+                    addCompactCell(traysPanel, trayEventBox, 1, traySlot, 1.0);
                 }
                 traysPanel.revalidate();
                 traysPanel.repaint();
@@ -897,18 +924,23 @@ with (imports) {
             }));
 
             panel.add(topPanel, BorderLayout.NORTH);
-            var centerPanel = new JPanel(new GridLayout(1, 2, 10, 8));
+            var centerPanel = new JPanel();
+            centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+            eventsPanel.setAlignmentX(0.0);
+            traysPanel.setAlignmentX(0.0);
             centerPanel.add(eventsPanel);
             centerPanel.add(traysPanel);
             panel.add(centerPanel, BorderLayout.CENTER);
             panel.add(
-                new JLabel('<html>Cross-sample guard: each collection event uses its matching plate and recovery plate. '
-                    + 'Only enabled trays are used in this run.</html>'),
+                new JLabel('<html><div style="width: 460px;">Cross-sample guard: each collection event uses its matching plate and recovery plate. '
+                    + 'Only enabled trays are used in this run.</div></html>'),
                 BorderLayout.SOUTH
             );
 
             var setupScroll = new JScrollPane(panel);
-            setupScroll.setPreferredSize(new Dimension(760, 520));
+            setupScroll.setPreferredSize(new Dimension(620, 580));
+            setupScroll.setHorizontalScrollBarPolicy(Packages.javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+            setupScroll.setVerticalScrollBarPolicy(Packages.javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
             var result = JOptionPane.showConfirmDialog(
                 null,
                 setupScroll,
@@ -1198,16 +1230,53 @@ with (imports) {
             var JComboBox = Packages.javax.swing.JComboBox;
             var DefaultComboBoxModel = Packages.javax.swing.DefaultComboBoxModel;
             var DocumentListener = Packages.javax.swing.event.DocumentListener;
+            var GridBagLayout = Packages.java.awt.GridBagLayout;
+            var GridBagConstraints = Packages.java.awt.GridBagConstraints;
+            var Insets = Packages.java.awt.Insets;
+            var BoxLayout = Packages.javax.swing.BoxLayout;
+            var Dimension = Packages.java.awt.Dimension;
             var panel = new JPanel(new BorderLayout(12, 6));
-            var calibrationPanel = new JPanel(new GridLayout(0, 2, 12, 6));
+            var calibrationPanel = new JPanel();
+            calibrationPanel.setLayout(new BoxLayout(calibrationPanel, BoxLayout.Y_AXIS));
             var jogDock = new JPanel(new BorderLayout(6, 6));
             jogDock.setBorder(BorderFactory.createTitledBorder('Jog controls'));
             jogDock.add(new JLabel('<html>Select a Jog button<br>from a calibration box.</html>'), BorderLayout.CENTER);
-            var startPanel = new JPanel(new GridLayout(0, 2, 8, 6));
-            var endPanel = new JPanel(new GridLayout(0, 2, 8, 6));
-            var heightPanel = new JPanel(new GridLayout(0, 2, 8, 6));
-            var platePanel = new JPanel(new GridLayout(0, 2, 8, 6));
-            var recoveryPlatePanel = new JPanel(new GridLayout(0, 2, 8, 6));
+
+            function makeCompactFormPanel(title) {
+                var form = new JPanel(new GridBagLayout());
+                form.setBorder(BorderFactory.createTitledBorder(title));
+                form.setAlignmentX(0.0);
+                return form;
+            }
+
+            function compactCalibrationControl(component, width) {
+                var preferred = component.getPreferredSize();
+                component.setPreferredSize(new Dimension(width, preferred.height));
+                component.setMinimumSize(new Dimension(width, preferred.height));
+                return component;
+            }
+
+            function addCalibrationRow(form, row, labelText, component) {
+                var labelConstraints = new GridBagConstraints();
+                labelConstraints.gridx = 0;
+                labelConstraints.gridy = row;
+                labelConstraints.anchor = GridBagConstraints.WEST;
+                labelConstraints.insets = new Insets(2, 5, 2, 8);
+                form.add(new JLabel(labelText), labelConstraints);
+
+                var controlConstraints = new GridBagConstraints();
+                controlConstraints.gridx = 1;
+                controlConstraints.gridy = row;
+                controlConstraints.anchor = GridBagConstraints.WEST;
+                controlConstraints.insets = new Insets(2, 0, 2, 5);
+                form.add(component, controlConstraints);
+            }
+
+            var startPanel = makeCompactFormPanel('Starting position');
+            var endPanel = makeCompactFormPanel('Ending position');
+            var heightPanel = makeCompactFormPanel('Tray height / pick Z');
+            var platePanel = makeCompactFormPanel('96-well plate');
+            var recoveryPlatePanel = makeCompactFormPanel('Recovery plate');
             var xLeftField = new JTextField(calibration.xLeft.toFixed(3), 10);
             var xRightField = new JTextField(calibration.xRight.toFixed(3), 10);
             var yTopField = new JTextField(calibration.yTop.toFixed(3), 10);
@@ -1541,85 +1610,58 @@ with (imports) {
                     + ' picker A1. Record updates A1 X mm and A1 Y mm.';
             }
 
-            startPanel.setBorder(BorderFactory.createTitledBorder('Starting position'));
-            startPanel.add(new JLabel('Sorting tray'));
-            startPanel.add(traySlotBox);
-            startPanel.add(new JLabel('X (x_left_mm)'));
-            startPanel.add(xLeftField);
-            startPanel.add(new JLabel('Y (y_top_mm)'));
-            startPanel.add(yTopField);
-            startPanel.add(new JLabel(''));
-            startPanel.add(startMoveButton);
-            startPanel.add(new JLabel(''));
-            startPanel.add(makeJogWindowButton('Jog Top camera', trayStartJogDetail, xLeftField, yTopField, true, updateTrayFieldsFromCamera));
+            compactCalibrationControl(traySlotBox, 120);
+            compactCalibrationControl(plateSlotBox, 120);
+            compactCalibrationControl(recoverySlotBox, 140);
+            compactCalibrationControl(trayPresetBox, 180);
+            var calibrationFields = [xLeftField, xRightField, yTopField, yBottomField, imageCountField,
+                plateA1XField, plateA1YField, topCameraA1XField, topCameraA1YField,
+                plateQaCameraA1XField, plateQaCameraA1YField, hiResFocusZField,
+                recoveryPlateA1XField, recoveryPlateA1YField, platePitchField,
+                trayHeightField, sizeClassField, pickZField];
+            for (var calibrationFieldIndex = 0; calibrationFieldIndex < calibrationFields.length; calibrationFieldIndex++) {
+                compactCalibrationControl(calibrationFields[calibrationFieldIndex], 140);
+            }
 
-            endPanel.setBorder(BorderFactory.createTitledBorder('Ending position'));
-            endPanel.add(new JLabel('X (x_right_mm)'));
-            endPanel.add(xRightField);
-            endPanel.add(new JLabel('Y (y_bottom_mm)'));
-            endPanel.add(yBottomField);
-            endPanel.add(new JLabel('Scan images'));
-            endPanel.add(imageCountField);
-            endPanel.add(new JLabel(''));
-            endPanel.add(endMoveButton);
-            endPanel.add(new JLabel(''));
-            endPanel.add(makeJogWindowButton('Jog Top camera', trayEndJogDetail, xRightField, yBottomField, true, updateTrayFieldsFromCamera));
+            addCalibrationRow(startPanel, 0, 'Sorting tray', traySlotBox);
+            addCalibrationRow(startPanel, 1, 'X (x_left_mm)', xLeftField);
+            addCalibrationRow(startPanel, 2, 'Y (y_top_mm)', yTopField);
+            addCalibrationRow(startPanel, 3, '', compactCalibrationControl(startMoveButton, 180));
+            addCalibrationRow(startPanel, 4, '', compactCalibrationControl(makeJogWindowButton('Jog Top camera', trayStartJogDetail, xLeftField, yTopField, true, updateTrayFieldsFromCamera), 180));
 
-            heightPanel.setBorder(BorderFactory.createTitledBorder('Tray height / pick Z'));
-            heightPanel.add(new JLabel('Preset'));
-            heightPanel.add(trayPresetBox);
-            heightPanel.add(new JLabel('Tray height mm'));
-            heightPanel.add(trayHeightField);
-            heightPanel.add(new JLabel('Size class'));
-            heightPanel.add(sizeClassField);
-            heightPanel.add(new JLabel('Pick Z mm'));
-            heightPanel.add(pickZField);
+            addCalibrationRow(endPanel, 0, 'X (x_right_mm)', xRightField);
+            addCalibrationRow(endPanel, 1, 'Y (y_bottom_mm)', yBottomField);
+            addCalibrationRow(endPanel, 2, 'Scan images', imageCountField);
+            addCalibrationRow(endPanel, 3, '', compactCalibrationControl(endMoveButton, 180));
+            addCalibrationRow(endPanel, 4, '', compactCalibrationControl(makeJogWindowButton('Jog Top camera', trayEndJogDetail, xRightField, yBottomField, true, updateTrayFieldsFromCamera), 180));
 
-            platePanel.setBorder(BorderFactory.createTitledBorder('96-well plate'));
-            platePanel.add(new JLabel('Plate slot'));
-            platePanel.add(plateSlotBox);
-            platePanel.add(new JLabel('A1 X mm'));
-            platePanel.add(plateA1XField);
-            platePanel.add(new JLabel('A1 Y mm'));
-            platePanel.add(plateA1YField);
-            platePanel.add(new JLabel('Well pitch mm'));
-            platePanel.add(platePitchField);
-            platePanel.add(new JLabel(''));
-            platePanel.add(plateA1MoveButton);
-            platePanel.add(new JLabel(''));
-            platePanel.add(makeJogWindowButton('Jog picker', plateA1JogDetail, plateA1XField, plateA1YField, false, null, nozzle, calibrationTravelZ, 'picker'));
-            platePanel.add(new JLabel('Top camera A1 X mm'));
-            platePanel.add(topCameraA1XField);
-            platePanel.add(new JLabel('Top camera A1 Y mm'));
-            platePanel.add(topCameraA1YField);
-            platePanel.add(new JLabel(''));
-            platePanel.add(topCameraA1MoveButton);
-            platePanel.add(new JLabel(''));
-            platePanel.add(makeJogWindowButton('Jog Top camera A1', topCameraA1JogDetail, topCameraA1XField, topCameraA1YField, true, updateCameraFieldsFromCurrentLocation));
-            platePanel.add(new JLabel('HiRes A1 X mm'));
-            platePanel.add(plateQaCameraA1XField);
-            platePanel.add(new JLabel('HiRes A1 Y mm'));
-            platePanel.add(plateQaCameraA1YField);
-            platePanel.add(new JLabel('HiRes focus Z mm'));
-            platePanel.add(hiResFocusZField);
-            platePanel.add(new JLabel(''));
-            platePanel.add(plateQaCameraA1MoveButton);
-            platePanel.add(new JLabel(''));
-            platePanel.add(makeJogWindowButton('Jog HiRes camera', plateQaA1JogDetail, plateQaCameraA1XField, plateQaCameraA1YField, false, null, nozzle, hiResCalibrationTravelZ, 'HiRes camera'));
+            addCalibrationRow(heightPanel, 0, 'Preset', trayPresetBox);
+            addCalibrationRow(heightPanel, 1, 'Tray height mm', trayHeightField);
+            addCalibrationRow(heightPanel, 2, 'Size class', sizeClassField);
+            addCalibrationRow(heightPanel, 3, 'Pick Z mm', pickZField);
 
-            recoveryPlatePanel.setBorder(BorderFactory.createTitledBorder('Recovery plate'));
-            recoveryPlatePanel.add(new JLabel('Recovery slot'));
-            recoveryPlatePanel.add(recoverySlotBox);
-            recoveryPlatePanel.add(new JLabel('A1 X mm'));
-            recoveryPlatePanel.add(recoveryPlateA1XField);
-            recoveryPlatePanel.add(new JLabel('A1 Y mm'));
-            recoveryPlatePanel.add(recoveryPlateA1YField);
-            recoveryPlatePanel.add(new JLabel(''));
-            recoveryPlatePanel.add(recoveryPlateA1XyButton);
-            recoveryPlatePanel.add(new JLabel(''));
-            recoveryPlatePanel.add(makeJogWindowButton('Jog picker', recoveryA1JogDetail, recoveryPlateA1XField, recoveryPlateA1YField, false, null, nozzle, calibrationTravelZ, 'picker'));
-            recoveryPlatePanel.add(new JLabel(''));
-            recoveryPlatePanel.add(recoveryPlateA1ZButton);
+            addCalibrationRow(platePanel, 0, 'Plate slot', plateSlotBox);
+            addCalibrationRow(platePanel, 1, 'A1 X mm', plateA1XField);
+            addCalibrationRow(platePanel, 2, 'A1 Y mm', plateA1YField);
+            addCalibrationRow(platePanel, 3, 'Well pitch mm', platePitchField);
+            addCalibrationRow(platePanel, 4, '', compactCalibrationControl(plateA1MoveButton, 210));
+            addCalibrationRow(platePanel, 5, '', compactCalibrationControl(makeJogWindowButton('Jog picker', plateA1JogDetail, plateA1XField, plateA1YField, false, null, nozzle, calibrationTravelZ, 'picker'), 210));
+            addCalibrationRow(platePanel, 6, 'Top camera A1 X mm', topCameraA1XField);
+            addCalibrationRow(platePanel, 7, 'Top camera A1 Y mm', topCameraA1YField);
+            addCalibrationRow(platePanel, 8, '', compactCalibrationControl(topCameraA1MoveButton, 210));
+            addCalibrationRow(platePanel, 9, '', compactCalibrationControl(makeJogWindowButton('Jog Top camera A1', topCameraA1JogDetail, topCameraA1XField, topCameraA1YField, true, updateCameraFieldsFromCurrentLocation), 210));
+            addCalibrationRow(platePanel, 10, 'HiRes A1 X mm', plateQaCameraA1XField);
+            addCalibrationRow(platePanel, 11, 'HiRes A1 Y mm', plateQaCameraA1YField);
+            addCalibrationRow(platePanel, 12, 'HiRes focus Z mm', hiResFocusZField);
+            addCalibrationRow(platePanel, 13, '', compactCalibrationControl(plateQaCameraA1MoveButton, 210));
+            addCalibrationRow(platePanel, 14, '', compactCalibrationControl(makeJogWindowButton('Jog HiRes camera', plateQaA1JogDetail, plateQaCameraA1XField, plateQaCameraA1YField, false, null, nozzle, hiResCalibrationTravelZ, 'HiRes camera'), 210));
+
+            addCalibrationRow(recoveryPlatePanel, 0, 'Recovery slot', recoverySlotBox);
+            addCalibrationRow(recoveryPlatePanel, 1, 'A1 X mm', recoveryPlateA1XField);
+            addCalibrationRow(recoveryPlatePanel, 2, 'A1 Y mm', recoveryPlateA1YField);
+            addCalibrationRow(recoveryPlatePanel, 3, '', compactCalibrationControl(recoveryPlateA1XyButton, 180));
+            addCalibrationRow(recoveryPlatePanel, 4, '', compactCalibrationControl(makeJogWindowButton('Jog picker', recoveryA1JogDetail, recoveryPlateA1XField, recoveryPlateA1YField, false, null, nozzle, calibrationTravelZ, 'picker'), 180));
+            addCalibrationRow(recoveryPlatePanel, 5, '', compactCalibrationControl(recoveryPlateA1ZButton, 180));
 
             function applyTrayPreset(index) {
                 var preset = presets[Math.max(0, Math.min(index, presets.length - 1))];
@@ -1864,20 +1906,26 @@ with (imports) {
             loadRecoveryFields(currentRecoverySlot);
 
             var scrollPane = new Packages.javax.swing.JScrollPane(calibrationPanel);
-            scrollPane.setPreferredSize(new Packages.java.awt.Dimension(880, 720));
+            scrollPane.setPreferredSize(new Packages.java.awt.Dimension(460, 650));
             scrollPane.setVerticalScrollBarPolicy(Packages.javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
-            scrollPane.setHorizontalScrollBarPolicy(Packages.javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+            scrollPane.setHorizontalScrollBarPolicy(Packages.javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
             panel.add(scrollPane, BorderLayout.CENTER);
             panel.add(jogDock, BorderLayout.EAST);
             showJogControls('Jog Top camera', trayStartJogDetail, xLeftField, yTopField, true, updateTrayFieldsFromCamera);
 
-            var result = JOptionPane.showConfirmDialog(
-                null,
+            var calibrationOptionPane = new JOptionPane(
                 panel,
-                'Tray scan bounds',
-                JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.QUESTION_MESSAGE
+                JOptionPane.QUESTION_MESSAGE,
+                JOptionPane.OK_CANCEL_OPTION
             );
+            var calibrationDialog = calibrationOptionPane.createDialog(null, 'Tray scan bounds');
+            calibrationDialog.setLocation(20, 20);
+            calibrationDialog.setVisible(true);
+            var calibrationSelection = calibrationOptionPane.getValue();
+            calibrationDialog.dispose();
+            var result = calibrationSelection === null
+                ? JOptionPane.CLOSED_OPTION
+                : Number(calibrationSelection);
             if (result !== JOptionPane.OK_OPTION) {
                 throw new Error('Scan cancelled before tray scan bounds were accepted.');
             }
@@ -2759,7 +2807,7 @@ with (imports) {
                 var wellIndex = (row * 12) + column;
                 var wellName = wellNameForIndex(wellIndex);
                 var button = new JButton();
-                button.setPreferredSize(new Dimension(82, 58));
+                button.setPreferredSize(new Dimension(58, 38));
                 button.setEnabled(!isReservedPlateWellIndex(wellIndex));
                 buttons[wellName] = button;
                 updateButton(wellName);
@@ -3852,10 +3900,14 @@ with (imports) {
                 if (normalizeWellName(existingRow[wellColumnIndex]) === well.name) {
                     if (!rowMarksWellUnavailable(existingRow, statusColumnIndex)) {
                         var headers = plateData.headers.length > 0 ? plateData.headers : plateCsvHeaders();
+                        var existingCollectionCode = plateRowValueByHeader(headers, existingRow, 'Collection Code');
+                        var collectionCodeChanged = String(existingCollectionCode || '') !== String(plateContext.collectionCode || '');
+                        setPlateRowValueByHeader(headers, existingRow, 'Collection Code', plateContext.collectionCode || '');
                         var scanId = plateRowValueByHeader(headers, existingRow, 'Scan ID');
                         var sourceScanImage = plateRowValueByHeader(headers, existingRow, 'Source Scan Image');
                         var wellImage = plateRowValueByHeader(headers, existingRow, 'Well Image');
-                        if (String(scanId || '').trim().length === 0
+                        if (collectionCodeChanged
+                                || String(scanId || '').trim().length === 0
                                 || String(sourceScanImage || '').trim().length === 0
                                 || String(wellImage || '').trim().length === 0) {
                             applyPlateTraceMetadata(headers, existingRow, metadata);
@@ -3878,8 +3930,10 @@ with (imports) {
                         }
                         existingRow[statusColumnIndex] = '';
                     }
-                    applyPlateTraceMetadata(plateData.headers.length > 0 ? plateData.headers : plateCsvHeaders(), existingRow, metadata);
-                    var updated = csvLine(plateData.headers.length > 0 ? plateData.headers : plateCsvHeaders());
+                    var existingHeaders = plateData.headers.length > 0 ? plateData.headers : plateCsvHeaders();
+                    setPlateRowValueByHeader(existingHeaders, existingRow, 'Collection Code', plateContext.collectionCode || '');
+                    applyPlateTraceMetadata(existingHeaders, existingRow, metadata);
+                    var updated = csvLine(existingHeaders);
                     for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) {
                         updated += csvLine(rows[rowIndex]);
                     }
@@ -4015,7 +4069,7 @@ with (imports) {
             BorderLayout.NORTH
         );
         var scroll = new JScrollPane(listPanel);
-        scroll.setPreferredSize(new Dimension(520, Math.min(640, 120 + (emptyWells.length * 90))));
+        scroll.setPreferredSize(new Dimension(480, Math.min(520, 100 + (emptyWells.length * 72))));
         panel.add(scroll, BorderLayout.CENTER);
 
         var result = JOptionPane.showConfirmDialog(
@@ -4519,7 +4573,7 @@ with (imports) {
         statusLabel.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
         frame.add(statusLabel, BorderLayout.NORTH);
 
-        var logArea = new JTextArea(22, 90);
+        var logArea = new JTextArea(16, 72);
         logArea.setEditable(false);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         frame.add(new JScrollPane(logArea), BorderLayout.CENTER);
@@ -4581,7 +4635,7 @@ with (imports) {
         }));
 
         frame.pack();
-        frame.setLocationRelativeTo(null);
+        frame.setLocation(30, 30);
         frame.setVisible(true);
         timer.start();
     }
@@ -5798,6 +5852,7 @@ with (imports) {
                 var JComboBox = Packages.javax.swing.JComboBox;
                 var DefaultComboBoxModel = Packages.javax.swing.DefaultComboBoxModel;
                 var JScrollPane = Packages.javax.swing.JScrollPane;
+                var JSplitPane = Packages.javax.swing.JSplitPane;
                 var ImageIcon = Packages.javax.swing.ImageIcon;
                 var BorderLayout = Packages.java.awt.BorderLayout;
                 var GridLayout = Packages.java.awt.GridLayout;
@@ -5831,15 +5886,18 @@ with (imports) {
                 details.add(candidateLabel);
                 panel.add(details, BorderLayout.NORTH);
 
-                var centerPanel = new JPanel(new GridLayout(1, 2, 10, 0));
-                var imageLabel = makeScaledImageLabel(summaryFile, ImageIcon, JLabel, Image, 900, 900);
+                var centerPanel = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+                centerPanel.setResizeWeight(0.38);
+                centerPanel.setContinuousLayout(true);
+                centerPanel.setDividerSize(8);
+                var imageLabel = makeScaledImageLabel(summaryFile, ImageIcon, JLabel, Image, 420, 500);
                 if (imageLabel !== null) {
                     var summaryScroll = new JScrollPane(imageLabel);
-                    summaryScroll.setPreferredSize(new Dimension(940, 820));
-                    centerPanel.add(summaryScroll);
+                    summaryScroll.setPreferredSize(new Dimension(440, 540));
+                    centerPanel.setLeftComponent(summaryScroll);
                 }
                 else {
-                    centerPanel.add(new JLabel('No detection summary image found: ' + summaryFile.getAbsolutePath()));
+                    centerPanel.setLeftComponent(new JLabel('No detection summary image found: ' + summaryFile.getAbsolutePath()));
                 }
 
                 var reviewPanel = new JPanel(new BorderLayout(6, 6));
@@ -5849,7 +5907,7 @@ with (imports) {
                 var zoomLabel = new JLabel('');
                 zoomLabel.setHorizontalAlignment(JLabel.CENTER);
                 var zoomScroll = new JScrollPane(zoomLabel);
-                zoomScroll.setPreferredSize(new Dimension(940, 640));
+                zoomScroll.setPreferredSize(new Dimension(650, 470));
                 var specimenButton = new JRadioButton('pick - specimen');
                 var debrisButton = new JRadioButton("don't pick - debris");
                 var debrisSubtypeLabel = new JLabel('debris type');
@@ -5872,6 +5930,8 @@ with (imports) {
                 correctionLabel.setFont(reviewFont);
                 specimenButton.setFont(reviewFont);
                 debrisButton.setFont(reviewFont);
+                specimenButton.setPreferredSize(new Dimension(260, 42));
+                debrisButton.setPreferredSize(new Dimension(260, 42));
                 debrisSubtypeLabel.setFont(reviewFont);
                 debrisSubtypeBox.setFont(reviewFont);
                 resetPickPointButton.setFont(reviewFont);
@@ -6057,7 +6117,7 @@ with (imports) {
                     if (targetImage === null) {
                         targetImage = imageFileForTarget(scanDir, target);
                     }
-                    var icon = scaledIconForFile(targetImage, ImageIcon, Image, 860, 540);
+                    var icon = scaledIconForFile(targetImage, ImageIcon, Image, 620, 450);
                     if (icon !== null) {
                         zoomLabel.setText('');
                         zoomLabel.setIcon(icon);
@@ -6073,8 +6133,8 @@ with (imports) {
                 var nextButton = new JButton('>');
                 prevButton.setFont(reviewBoldFont);
                 nextButton.setFont(reviewBoldFont);
-                prevButton.setPreferredSize(new Dimension(72, 44));
-                nextButton.setPreferredSize(new Dimension(72, 44));
+                prevButton.setPreferredSize(new Dimension(48, 34));
+                nextButton.setPreferredSize(new Dimension(48, 34));
                 prevButton.addActionListener(new ActionListener({
                     actionPerformed: function(event) {
                         saveCurrentDecision();
@@ -6097,13 +6157,22 @@ with (imports) {
                 nav.add(targetHeader, BorderLayout.CENTER);
                 nav.add(nextButton, BorderLayout.EAST);
 
-                var choicePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-                choicePanel.add(specimenButton);
-                choicePanel.add(debrisButton);
-                choicePanel.add(debrisSubtypeLabel);
-                choicePanel.add(debrisSubtypeBox);
-                choicePanel.add(resetPickPointButton);
-                choicePanel.add(selectionCountLabel);
+                var choicePanel = new JPanel(new BorderLayout(4, 4));
+                choicePanel.setBorder(new EmptyBorder(4, 0, 0, 0));
+                var decisionPanel = new JPanel(new GridLayout(1, 2, 8, 0));
+                decisionPanel.add(specimenButton);
+                decisionPanel.add(debrisButton);
+                var pickPointPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+                debrisSubtypeBox.setPreferredSize(new Dimension(280, 34));
+                resetPickPointButton.setPreferredSize(new Dimension(180, 34));
+                pickPointPanel.add(debrisSubtypeLabel);
+                pickPointPanel.add(debrisSubtypeBox);
+                pickPointPanel.add(resetPickPointButton);
+                var choiceDetails = new JPanel(new GridLayout(0, 1, 2, 2));
+                choiceDetails.add(pickPointPanel);
+                choiceDetails.add(correctionLabel);
+                choicePanel.add(decisionPanel, BorderLayout.NORTH);
+                choicePanel.add(choiceDetails, BorderLayout.CENTER);
                 specimenButton.addActionListener(new ActionListener({
                     actionPerformed: function(event) {
                         saveCurrentDecision();
@@ -6157,14 +6226,14 @@ with (imports) {
                 reviewPanel.add(nav, BorderLayout.NORTH);
                 reviewPanel.add(zoomScroll, BorderLayout.CENTER);
                 reviewPanel.add(choicePanel, BorderLayout.SOUTH);
-                centerPanel.add(reviewPanel);
+                centerPanel.setRightComponent(reviewPanel);
                 panel.add(centerPanel, BorderLayout.CENTER);
 
-                var buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+                var buttons = new JPanel(new BorderLayout());
                 var startButton = new JButton('Start Picking');
                 startButton.setFont(reviewBoldFont);
-                startButton.setPreferredSize(new Dimension(190, 52));
-                buttons.add(startButton);
+                startButton.setPreferredSize(new Dimension(180, 42));
+                buttons.add(startButton, BorderLayout.EAST);
                 panel.add(buttons, BorderLayout.SOUTH);
 
                 function startPicking() {
@@ -6186,15 +6255,11 @@ with (imports) {
                 frame.setContentPane(panel);
                 frame.pack();
                 var screenSize = Packages.java.awt.Toolkit.getDefaultToolkit().getScreenSize();
-                var maxFrameWidth = Math.max(1200, Number(screenSize.width) - 120);
-                var maxFrameHeight = Math.max(900, Number(screenSize.height) - 120);
-                if (frame.getWidth() > maxFrameWidth || frame.getHeight() > maxFrameHeight) {
-                    frame.setSize(
-                        Math.min(frame.getWidth(), maxFrameWidth),
-                        Math.min(frame.getHeight(), maxFrameHeight)
-                    );
-                }
-                frame.setLocationRelativeTo(null);
+                var frameWidth = Math.min(1240, Math.max(980, Number(screenSize.width) - 120));
+                var frameHeight = Math.min(920, Math.max(720, Number(screenSize.height) - 120));
+                frame.setSize(frameWidth, frameHeight);
+                centerPanel.setDividerLocation(0.38);
+                frame.setLocation(20, 20);
                 frame.setVisible(true);
             }
         });
@@ -9124,6 +9189,113 @@ with (imports) {
         };
     }
 
+    function promptForManualMultiEventImagingSetup(calibration) {
+        var JComboBox = Packages.javax.swing.JComboBox;
+        var DefaultComboBoxModel = Packages.javax.swing.DefaultComboBoxModel;
+        var Dimension = Packages.java.awt.Dimension;
+        var multiConfig = calibration.multiConfig
+            ? clonePlainObject(calibration.multiConfig)
+            : defaultMultiTrayCalibration(calibration);
+        var eventConfig = multiSlotByNumber(multiConfig.collection_events, 'event_slot', 1);
+        var plateConfig = multiSlotByNumber(multiConfig.plates, 'plate_slot', 1);
+        var panel = new JPanel(new BorderLayout(8, 8));
+        var setupPanel = new JPanel(new GridLayout(0, 4, 8, 4));
+        setupPanel.setBorder(BorderFactory.createTitledBorder('Plate and collection events'));
+        var plateNumberField = new JTextField(String(plateConfig.plate_number || ''), 12);
+        var skipExistingBox = new JCheckBox('Skip wells already in spreadsheet', true);
+        setupPanel.add(new JLabel('Plate number'));
+        setupPanel.add(plateNumberField);
+        setupPanel.add(new JLabel('Existing wells'));
+        setupPanel.add(skipExistingBox);
+        var eventCodeFields = [];
+        for (var eventSlot = 1; eventSlot <= 5; eventSlot++) {
+            eventCodeFields[eventSlot] = new JTextField(
+                eventSlot === 1 ? String(eventConfig.collection_code || '') : '', 14
+            );
+            setupPanel.add(new JLabel('Event ' + eventSlot));
+            setupPanel.add(eventCodeFields[eventSlot]);
+        }
+        setupPanel.add(new JLabel(''));
+        setupPanel.add(new JLabel(''));
+        panel.add(setupPanel, BorderLayout.NORTH);
+
+        var assignmentModelValues = ['Skip', '1', '2', '3', '4', '5'];
+        var wellEventBoxes = {};
+        var mapGrid = new JPanel(new GridLayout(8, 12, 3, 3));
+        mapGrid.setBorder(BorderFactory.createTitledBorder('Collection event for each well'));
+        for (var wellIndex = 0; wellIndex < 96; wellIndex++) {
+            var wellName = wellNameForIndex(wellIndex);
+            var cell = new JPanel(new BorderLayout(0, 1));
+            var nameLabel = new JLabel(wellName, JLabel.CENTER);
+            var model = new DefaultComboBoxModel();
+            for (var modelIndex = 0; modelIndex < assignmentModelValues.length; modelIndex++) {
+                model.addElement(assignmentModelValues[modelIndex]);
+            }
+            var eventBox = new JComboBox(model);
+            eventBox.setSelectedIndex(isReservedPlateWellIndex(wellIndex) ? 0 : 1);
+            eventBox.setEnabled(!isReservedPlateWellIndex(wellIndex));
+            eventBox.setPreferredSize(new Dimension(82, 28));
+            wellEventBoxes[wellName] = eventBox;
+            cell.add(nameLabel, BorderLayout.NORTH);
+            cell.add(eventBox, BorderLayout.CENTER);
+            mapGrid.add(cell);
+        }
+        var mapScroll = new JScrollPane(mapGrid);
+        mapScroll.setPreferredSize(new Dimension(1080, 470));
+        mapScroll.setHorizontalScrollBarPolicy(Packages.javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        mapScroll.setVerticalScrollBarPolicy(Packages.javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        panel.add(mapScroll, BorderLayout.CENTER);
+
+        var choice = JOptionPane.showConfirmDialog(null, panel, 'Manual Plate Imaging Setup',
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (choice !== JOptionPane.OK_OPTION) {
+            return null;
+        }
+        var plateNumber = normalizePlateNumber(plateNumberField.getText());
+        var eventCodes = [];
+        var seenCodes = {};
+        for (var validateSlot = 1; validateSlot <= 5; validateSlot++) {
+            var eventCode = String(eventCodeFields[validateSlot].getText()).trim();
+            eventCodes[validateSlot] = eventCode;
+            if (eventCode.length > 0) {
+                if (seenCodes[eventCode]) {
+                    throw new Error('Collection event codes must be unique. Duplicate: ' + eventCode);
+                }
+                seenCodes[eventCode] = true;
+            }
+        }
+        var wellEventSlots = {};
+        var assignedCount = 0;
+        for (var validateIndex = 0; validateIndex < 96; validateIndex++) {
+            var validateName = wellNameForIndex(validateIndex);
+            var assignedSlot = Number(wellEventBoxes[validateName].getSelectedIndex());
+            wellEventSlots[validateName] = assignedSlot;
+            if (assignedSlot > 0) {
+                if (!eventCodes[assignedSlot]) {
+                    throw new Error(validateName + ' is assigned to Event ' + assignedSlot
+                        + ', but that event has no collection code.');
+                }
+                assignedCount++;
+            }
+        }
+        if (assignedCount === 0) {
+            throw new Error('Assign at least one well to a collection event.');
+        }
+        eventConfig.collection_code = eventCodes[1] || '';
+        plateConfig.plate_number = plateNumber;
+        plateConfig.start_well = 'A1';
+        multiConfig.active_collection_event_count = 1;
+        multiConfig.active_plate_count = 1;
+        calibration.multiConfig = multiConfig;
+        return {
+            calibration: calibration,
+            eventCodes: eventCodes,
+            wellEventSlots: wellEventSlots,
+            assignedCount: assignedCount,
+            skipExisting: Boolean(skipExistingBox.isSelected())
+        };
+    }
+
     function promptForManualHiResA1Calibration(calibration, nozzle) {
         var plateConfig = multiSlotByNumber(calibration.multiConfig.plates, 'plate_slot', 1);
         var shared = calibration.multiConfig.shared;
@@ -9196,7 +9368,7 @@ with (imports) {
         var pickTool = findPickTool('H1', 'N1');
         var nozzle = pickTool.nozzle;
         var calibration = loadTrainingTrayCalibration(defaultTrainingTrayCalibrationValues());
-        var setup = promptForManualPlateImagingSetup(calibration);
+        var setup = promptForManualMultiEventImagingSetup(calibration);
         if (setup === null) {
             return;
         }
@@ -9215,23 +9387,25 @@ with (imports) {
             mode: 'manual_plate_imaging',
             scan_id: scanId,
             plate_number: plateContext.plateNumber,
-            collection_code: plateContext.collectionCode,
-            first_well: wellNameForIndex(setup.firstWellIndex),
-            last_well: wellNameForIndex(setup.lastWellIndex),
+            collection_events: setup.eventCodes.slice(1),
+            well_event_slots: setup.wellEventSlots,
             started_at: new Date().toISOString()
         };
         writeText(new File(scanDir, 'manual_plate_imaging.json'), JSON.stringify(runRecord, null, 2) + '\n');
         ensurePlateSpreadsheetHeader(plateContext);
         var occupied = occupiedWellSet(plateContext.plateNumber);
         var wellIndexes = [];
-        for (var index = setup.firstWellIndex; index <= setup.lastWellIndex; index++) {
+        for (var index = 0; index < 96; index++) {
             var name = wellNameForIndex(index);
-            if (!isReservedPlateWellIndex(index) && !(setup.skipExisting && occupied[name])) {
+            var assignedEventSlot = Number(setup.wellEventSlots[name] || 0);
+            if (assignedEventSlot > 0
+                    && !isReservedPlateWellIndex(index)
+                    && !(setup.skipExisting && occupied[name])) {
                 wellIndexes.push(index);
             }
         }
         if (wellIndexes.length === 0) {
-            JOptionPane.showMessageDialog(null, 'There are no wells to image in the selected range.',
+            JOptionPane.showMessageDialog(null, 'There are no assigned wells to image.',
                 'Manual Plate Imaging', JOptionPane.INFORMATION_MESSAGE);
             return;
         }
@@ -9239,7 +9413,11 @@ with (imports) {
         var travelZ = Math.max(0.0, Number(nozzle.location.z));
         var focusZ = Number(calibration.multiConfig.shared.hires_focus_z_mm);
         for (var position = 0; position < wellIndexes.length; position++) {
-            var well = wellLocationForIndex(wellIndexes[position], plateContext);
+            var wellName = wellNameForIndex(wellIndexes[position]);
+            var eventSlot = Number(setup.wellEventSlots[wellName]);
+            var wellPlateContext = clonePlainObject(plateContext);
+            wellPlateContext.collectionCode = String(setup.eventCodes[eventSlot]);
+            var well = wellLocationForIndex(wellIndexes[position], wellPlateContext);
             var target = { objectIndex: position + 1, reviewNumber: position + 1 };
             var imageName = 'well_' + well.name + '_' + timestamp() + '_hires.png';
             writeStatus(statusFile, 'hires', scanId, position + 1, wellIndexes.length,
@@ -9253,8 +9431,8 @@ with (imports) {
                 scanDir, scanId, target, position, hiResImageFile, null, null,
                 'manual plating HiRes', null
             );
-            copyPlateSpecimenImages(scanDir, plateContext, well, target, hiResImageFile, null, null, null);
-            appendPlateSpreadsheetRow(plateContext, well, metadata);
+            copyPlateSpecimenImages(scanDir, wellPlateContext, well, target, hiResImageFile, null, null, null);
+            appendPlateSpreadsheetRow(wellPlateContext, well, metadata);
         }
         parkNozzlesForScan(machine.defaultHead);
         runRecord.completed_at = new Date().toISOString();

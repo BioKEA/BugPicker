@@ -42,7 +42,7 @@ with (imports) {
             return '';
         }
         var reader = new BufferedReader(new FileReader(file));
-        var builder = new StringBuilder();
+        var builder = new java.lang.StringBuilder();
         try {
             var line;
             while ((line = reader.readLine()) !== null) {
@@ -66,7 +66,7 @@ with (imports) {
             return '';
         }
         var reader = new BufferedReader(new FileReader(file));
-        var builder = new StringBuilder();
+        var builder = new java.lang.StringBuilder();
         try {
             var line;
             while ((line = reader.readLine()) !== null) {
@@ -220,7 +220,7 @@ with (imports) {
                 + outputDir.getAbsolutePath();
         }
 
-        var reportArea = new JTextArea(reportText, 24, 78);
+        var reportArea = new JTextArea(reportText, 18, 72);
         reportArea.setEditable(false);
         reportArea.setLineWrap(false);
         reportArea.setCaretPosition(0);
@@ -271,7 +271,7 @@ with (imports) {
         statusPanel.add(activityBar, BorderLayout.SOUTH);
         frame.add(statusPanel, BorderLayout.NORTH);
 
-        var logArea = new JTextArea(26, 95);
+        var logArea = new JTextArea(18, 78);
         logArea.setEditable(false);
         logArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         frame.add(new JScrollPane(logArea), BorderLayout.CENTER);
@@ -345,7 +345,7 @@ with (imports) {
         }));
 
         frame.pack();
-        frame.setLocationRelativeTo(null);
+        frame.setLocation(30, 30);
         frame.setVisible(true);
         timer.start();
     }

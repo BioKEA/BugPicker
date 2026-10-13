@@ -25,12 +25,13 @@ DETECTION_STATUS_FILE = CONTROL_DIR / "detection_status.json"
 GUI_LOCK_FILE = CONTROL_DIR / "halt_control_gui.lock"
 TERMINAL_SCAN_STATUSES = {"completed", "halted", "failed", "error"}
 AUTO_CLOSE_DELAY_MS = 1500
-DEFAULT_WINDOW_WIDTH = 1800
-DEFAULT_WINDOW_HEIGHT = 1340
-MIN_WINDOW_WIDTH = 1200
-MIN_WINDOW_HEIGHT = 960
-DETECTION_PREVIEW_MAX_WIDTH = 1720
-DETECTION_PREVIEW_MAX_HEIGHT = 1040
+DEFAULT_WINDOW_WIDTH = 688
+DEFAULT_WINDOW_HEIGHT = 840
+MIN_WINDOW_WIDTH = 620
+MIN_WINDOW_HEIGHT = 600
+DETECTION_PREVIEW_MAX_WIDTH = 630
+DETECTION_PREVIEW_MAX_HEIGHT = 540
+CONTENT_WRAP_LENGTH = 620
 
 
 def claim_single_instance() -> object | None:
@@ -54,9 +55,10 @@ class HaltControl(tk.Tk):
         self.title("BioKEA Bug PnP Control")
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        window_width = min(DEFAULT_WINDOW_WIDTH, max(MIN_WINDOW_WIDTH, screen_width - 80))
-        window_height = min(DEFAULT_WINDOW_HEIGHT, max(MIN_WINDOW_HEIGHT, screen_height - 80))
-        self.geometry(f"{window_width}x{window_height}")
+        window_width = min(DEFAULT_WINDOW_WIDTH, max(MIN_WINDOW_WIDTH, screen_width - 120))
+        window_height = min(DEFAULT_WINDOW_HEIGHT, max(MIN_WINDOW_HEIGHT, screen_height - 120))
+        window_x = max(20, screen_width - window_width - 30)
+        self.geometry(f"{window_width}x{window_height}+{window_x}+30")
         self.minsize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
         CONTROL_DIR.mkdir(exist_ok=True)
@@ -120,13 +122,14 @@ class HaltControl(tk.Tk):
         ttk.Label(halt_panel, textvariable=self.control_var, style="Panel.TLabel").pack(anchor="w")
 
         button_row = ttk.Frame(halt_panel, style="Panel.TFrame")
-        button_row.pack(fill="x", pady=(12, 0))
+        button_row.pack(anchor="w", pady=(10, 0))
 
         pause_button = tk.Button(
             button_row,
             text="PAUSE",
             command=self.request_pause,
-            height=2,
+            width=12,
+            height=1,
             bg="#d6a11d",
             fg="#111827",
             activebackground="#b98512",
@@ -134,13 +137,14 @@ class HaltControl(tk.Tk):
             font=("TkDefaultFont", 10, "bold"),
             relief="flat",
         )
-        pause_button.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        pause_button.pack(side="left", padx=(0, 6))
 
         resume_button = tk.Button(
             button_row,
             text="RESUME",
             command=self.resume_scan,
-            height=2,
+            width=12,
+            height=1,
             bg="#1d6b4f",
             fg="white",
             activebackground="#15543e",
@@ -148,13 +152,14 @@ class HaltControl(tk.Tk):
             font=("TkDefaultFont", 10, "bold"),
             relief="flat",
         )
-        resume_button.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        resume_button.pack(side="left", padx=(0, 6))
 
         halt_button = tk.Button(
             button_row,
             text="HALT",
             command=self.request_halt,
-            height=2,
+            width=12,
+            height=1,
             bg="#a32020",
             fg="white",
             activebackground="#7a1616",
@@ -162,13 +167,13 @@ class HaltControl(tk.Tk):
             font=("TkDefaultFont", 10, "bold"),
             relief="flat",
         )
-        halt_button.pack(side="left", fill="x", expand=True)
+        halt_button.pack(side="left")
 
         note = (
             "Pause waits before the next scan move. Halt exits the running script before the next move. "
             "Use OpenPnP/controller/physical stop for immediate emergency stop."
         )
-        ttk.Label(outer, text=note, wraplength=900).pack(anchor="w", pady=(8, 0))
+        ttk.Label(outer, text=note, wraplength=CONTENT_WRAP_LENGTH).pack(anchor="w", pady=(8, 0))
 
         detection_panel = ttk.Frame(outer, padding=10, style="Panel.TFrame")
         detection_panel.pack(fill="both", expand=True, pady=(8, 0))
@@ -178,7 +183,7 @@ class HaltControl(tk.Tk):
             detection_panel,
             textvariable=self.detection_detail_var,
             style="Small.TLabel",
-            wraplength=980,
+            wraplength=CONTENT_WRAP_LENGTH,
         ).pack(anchor="w", pady=(4, 8))
         self.detection_image_label = ttk.Label(detection_panel, style="Panel.TLabel")
         self.detection_image_label.pack(anchor="center", fill="both", expand=True)

@@ -106,7 +106,7 @@ with (imports) {
         var progress = new JProgressBar(0, total);
         progress.setStringPainted(true); progress.setString('0 / ' + total);
         center.add(progress, BorderLayout.NORTH);
-        var details = new JTextArea(8, 68);
+        var details = new JTextArea(6, 58);
         details.setEditable(false); details.setText('Output folder:\n' + outputDir.getAbsolutePath());
         center.add(new JScrollPane(details), BorderLayout.CENTER); frame.add(center, BorderLayout.CENTER);
         var buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -116,7 +116,7 @@ with (imports) {
             if (state.finished) { frame.dispose(); return; }
             state.cancelled = true; button.setEnabled(false); label.setText('Cancelling after this image...');
         }}));
-        frame.pack(); frame.setLocationRelativeTo(null); frame.setVisible(true);
+        frame.pack(); frame.setLocation(30, 30); frame.setVisible(true);
         return {frame: frame, label: label, progress: progress, details: details, button: button, state: state};
     }
 
